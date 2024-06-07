@@ -4,36 +4,75 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Nonces.sol";
+import "./IPump.sol";
 import "./Token.sol";
+import "hardhat/console.sol";
 
-contract Pump is Ownable(msg.sender), Nonces {
-
-    event NewToken(string indexed name, string indexed symbol, address indexed creator);
-
+contract Pump is Ownable(msg.sender), Nonces, IPump {
     address public immutable tokenImplementation;
+    uint256 public socialDistributionPercent = 500;
+    address public socialDistributionContract;
+    uint256 private denominator = 10000;
+    uint256 public maxSupply = 23 ether;
 
     mapping(address => bool) public createdTokens;
 
     uint256 public totalTokens;
 
-    constructor() {
+    constructor(address _socialDistributionContract) {
+        socialDistributionContract = _socialDistributionContract;
         tokenImplementation = address(new Token());
-        Token(tokenImplementation).initialize("", "");
+        string memory tick = 'Matrix';
+        Token(tokenImplementation).initialize(
+            tick,
+            socialDistributionContract,
+            (maxSupply * socialDistributionPercent) / denominator,
+            maxSupply
+        );
+        emit NewToken(tick, tokenImplementation, msg.sender);
     }
-    
-    function createToken(string calldata name, string calldata symbol) external payable returns (address) {
+
+    // admin function
+    function adminChangeSocialDistributionContract(address _socialDistributionContract) public onlyOwner {
+        if (_socialDistributionContract == address(0)) {
+            revert CantBeZeroAddress();
+        }
+        emit SocialDistributionContractChanged(socialDistributionContract, _socialDistributionContract);
+        socialDistributionContract = _socialDistributionContract;
+    }
+
+    function admintChangeSocialDistributionPercent(uint256 _socialDistributionPercent) public onlyOwner {
+        if (_socialDistributionPercent > denominator) {
+            revert CantSetSocialDistributionMoreThanTotalSupply();
+        }
+        emit SocialDistributionPercentageChanged(socialDistributionPercent, _socialDistributionPercent);
+        socialDistributionPercent = _socialDistributionPercent;
+    }
+
+    function adminChangeMaxSupply(uint256 _maxSupply) public onlyOwner {
+        emit MaxSupplyChanged(maxSupply, _maxSupply);
+        maxSupply = _maxSupply;
+    }
+
+    function createToken(string calldata tick) external payable returns (address) {
         bytes32 salt;
         address creator = tx.origin;
         unchecked {
-            salt = keccak256(abi.encodePacked(name, symbol, _useNonce(address(creator)), address(creator)));
+            salt = keccak256(abi.encodePacked(tick, _useNonce(address(creator)), address(creator)));
         }
 
         address instance = Clones.cloneDeterministic(tokenImplementation, salt);
-        Token(instance).initialize(name, symbol);
+        Token(instance).initialize(
+            tick,
+            socialDistributionContract,
+            (maxSupply * socialDistributionPercent) / denominator,
+            maxSupply
+        );
 
         createdTokens[instance] = true;
         totalTokens += 1;
-        emit NewToken(name, symbol, creator);
+        emit NewToken(tick, instance, creator);
+        console.log(instance);
         return instance;
     }
 }

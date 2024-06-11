@@ -3,7 +3,7 @@ pragma solidity 0.8.20;
 
 import {ERC20} from "./solady/src/tokens/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./IToken.sol";
+import "./interface/IToken.sol";
 
 contract Token is IToken, ERC20 {
     string private _name;

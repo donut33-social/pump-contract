@@ -4,11 +4,11 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Nonces.sol";
-import "./IPump.sol";
+import "./interface/IPump.sol";
 import "./Token.sol";
 import "hardhat/console.sol";
 
-contract Pump is Ownable(msg.sender), Nonces, IPump {
+contract Pump is Ownable, Nonces, IPump {
     address public immutable tokenImplementation;
     uint256 public socialDistributionPercent = 500;
     address public socialDistributionContract;
@@ -19,7 +19,7 @@ contract Pump is Ownable(msg.sender), Nonces, IPump {
 
     uint256 public totalTokens;
 
-    constructor(address _socialDistributionContract) {
+    constructor(address _socialDistributionContract) Ownable(msg.sender) {
         socialDistributionContract = _socialDistributionContract;
         tokenImplementation = address(new Token());
         string memory tick = 'Matrix';

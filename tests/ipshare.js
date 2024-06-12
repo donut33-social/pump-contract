@@ -185,6 +185,15 @@ describe("IPShare", function () {
             })).to.be.revertedWithCustomError(ipshare, 'PendingTradeNow')
         })
 
+        it('Cannt stake and unstake shares', async () => {
+            await createIPShare(alice, 10, 5);
+            await expect(ipshare.connect(alice).stake(alice, parseAmount(0.1))).to.be
+            .revertedWithCustomError(ipshare, 'PendingTradeNow')
+
+            await expect(ipshare.connect(alice).unstake(alice, parseAmount(0.1))).to.be
+            .revertedWithCustomError(ipshare, 'PendingTradeNow')
+        })
+
         it('Can create ipshare for other one', async () => {
             let amount = 1;
             await expect(ipshare.connect(alice).createShare(bob, parseAmount(amount), { value: parseAmount(5) }))
@@ -226,7 +235,32 @@ describe("IPShare", function () {
 
         it("Can capture value", async () => {
             await createIPShare(subject, 10, 5);
-            
+            await expect(ipshare.valueCapture(subject, {
+                value: parseAmount(0.1)
+            })).to.emit(ipshare, 'ValueCaptured')
+            .withArgs(subject, owner, parseAmount(0.1))
+
+            const supply = await ipshare.ipshareSupply(subject)
+            const balance = await ipshare.ipshareBalance(subject, ipshare)
+            const stakeInfo = await ipshare.getStakerInfo(subject, subject)
+            console.log(supply.toString() / 1e18, balance.toString() / 1e18, stakeInfo)
         })
+
+        it('Can claim captured shares', async () => {
+            await createIPShare(subject, 10, 5);
+            await expect(ipshare.valueCapture(subject, {
+                value: parseAmount(0.1)
+            })).to.emit(ipshare, 'ValueCaptured')
+            .withArgs(subject, owner, parseAmount(0.1))
+
+            await ipshare.connect(subject).claim(subject)
+            const balance = await ipshare.ipshareBalance(subject, ipshare)
+            const suBalance = await ipshare.ipshareBalance(subject, subject)
+            console.log(balance.toString() / 1e18, suBalance.toString() / 1e18)
+        })
+    })
+
+    describe('Start trade', function() {
+        
     })
 })

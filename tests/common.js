@@ -1,6 +1,8 @@
-const { ethers } = require('hardhat')
+const { ethers } = require("hardhat");
+const { parseAmount } = require("./helper");
+const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
-async function deployFactory() {
+async function deployPumpFactory() {
     const [
         owner,
         alice,
@@ -21,6 +23,47 @@ async function deployFactory() {
     }
 }
 
+async function deployIPShare() {
+    const [
+        owner, 
+        alice, 
+        bob, 
+        carol, 
+        donut, 
+        buyer, 
+        donutFeeDestination, 
+        dexFeeDestination,
+        subject,
+        ftSubject
+    ] = await ethers.getSigners();
+
+    const ipshareFactory = await ethers.getContractFactory('IPShare');
+    const ipshare = await ipshareFactory.deploy();
+    await ipshare.adminSetDonutFeeDestination(donutFeeDestination);
+    return {
+        // contracts
+        ipshare,
+        donut,
+        // users
+        owner,
+        alice,
+        bob,
+        carol,
+        buyer,
+        // fee receivers
+        donutFeeDestination,
+        dexFeeDestination,
+        subject,
+        ftSubject
+      };
+}
+
+async function deployCurationRewards() {
+
+}
+
 module.exports = {
-    deployFactory
+    deployPumpFactory,
+    deployIPShare,
+    deployCurationRewards
 }

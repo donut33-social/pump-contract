@@ -58,12 +58,16 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
 
     uint256 minHoldShares = 10 ether;
 
-    // buy and sell c-share will cost operator fee to the author and donut, the percent is a number from 0 - 10000, ex. 5000 means 50%
+    // buy and sell c-share will cost operator fee to the author and donut, 
+    // the percent is a number from 0 - 10000, ex. 5000 means 50%
     uint256 public subjectFeePercent;
     uint256 public donutFeePercent;
     uint256 public createFee;
     // address that receive donut fee
     address public donutFeeDestination;
+
+    bool public startTrade = false;
+    bool public startFM3D = false;
 
     // ================================ stake =================================
     struct Staker {
@@ -87,19 +91,27 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     mapping(address => uint256) private ipshareAcc;
 
     // ================================ Modifiers =================================
-    // only Donut can call buy function
+    // only Donut can call buy function, donut contract contains fomo 3d game
     modifier onlyDonut() {
-        require(donut == msg.sender, "Only donut");
+        if (startFM3D && donut != msg.sender) {
+            revert OnlyDonut();
+        }
         _;
     }
 
     modifier onlyStaker(address subject) {
         uint256 index = stakerIndex[subject][msg.sender];
-        require(
-            stakerMaxHeap[subject].length > 0 &&
-                stakerMaxHeap[subject][index].staker == msg.sender,
-            "Not a staker"
-        );
+        if (!(stakerMaxHeap[subject].length > 0 &&
+            stakerMaxHeap[subject][index].staker == msg.sender)) {
+            revert OnlyStaker();
+        }
+        _;
+    }
+
+    modifier needTradable() {
+        if (!startTrade) {
+            revert PendingTradeNow();
+        }
         _;
     }
 
@@ -117,17 +129,32 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         donut = _donut;
     }
 
+    function adminStartTrade() public onlyOwner() {
+        startTrade = true;
+    }
+
+    function adminStartFM3D() public onlyOwner() {
+        if (address(donut) == address(0)) {
+            revert DonutNotSet();
+        }
+        startFM3D = true;
+    }
+
     function adminSetSubjectFeePercent(
         uint256 _subjectFeePercent
     ) public onlyOwner {
-        require(_subjectFeePercent < 1000, "Fee percent is greater than 10%");
+        if (_subjectFeePercent >= 1000) {
+            revert FeePercentIsTooLarge();
+        }
         subjectFeePercent = _subjectFeePercent;
     }
 
     function adminSetDonutFeePercent(
         uint256 _donutFeePercent
     ) public onlyOwner {
-        require(_donutFeePercent < 1000, "Fee percent is greater than 10%");
+        if (_donutFeePercent >= 1000) {
+            revert FeePercentIsTooLarge();
+        }
         donutFeePercent = _donutFeePercent;
     }
 
@@ -140,17 +167,23 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     function adminSetCreateFee(
         uint256 _createFee
     ) public onlyOwner {
-        require(_createFee < 0.01 ether, "Too much fee!");
+        if (_createFee > 0.01 ether) {
+            revert TooMuchFee();
+        }
         createFee = _createFee;
     }
 
     function pause() public onlyOwner {
-        require(Pausable(donut).paused(), "Can't pause if donut is unpaused.");
+        if (!Pausable(donut).paused()) {
+            revert CanntPauseNow();
+        }
         _pause();
     }
 
     function unpause() public onlyOwner {
-        require(!Pausable(donut).paused(), "Can't unpause if donut is paused.");
+        if (Pausable(donut).paused()) {
+            revert CanntUnpauseNow();
+        }
         _unpause();
     }
 
@@ -168,24 +201,45 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
      * @param amount the initial ipshare amount except minHoldShares free share
      */
     function createShare(
+        address subject,
         uint256 amount
     ) public payable override nonReentrant whenNotPaused {
         // check if ipshare already created
-        require(!ipshareCreated[msg.sender], "IPShare already created");
-        ipshareCreated[msg.sender] = true;
+        if (ipshareCreated[subject]) {
+            revert IPShareAlreadyCreated();
+        }
+        ipshareCreated[subject] = true;
         uint256 price = getPrice(minHoldShares, amount);
-        require(msg.value >= price + createFee, "Insufficient payment");
-        if (msg.value > price + createFee) {
+        if (msg.value < price + createFee) {
+            revert InsufficientPay();
+        }
+        
+        if (msg.value <= price + createFee) {
             (bool success, ) = msg.sender.call{value: msg.value - price - createFee}("");
-            require(success, "refund fail");
+            if (!success) {
+                revert RefundFail();
+            }
         }
         (bool success1, ) = donutFeeDestination.call{value: createFee}("");
-        require(success1, "pay create fee fail");
-        // the owner can get 1 share free
-        ipshareBalance[msg.sender][msg.sender] += amount + minHoldShares;
-        ipshareSupply[msg.sender] = amount + minHoldShares;
+        if (!success1) {
+            revert PayCreateFeeFail();
+        }
+
+        uint256 updatedAmount = amount + minHoldShares;
+        // the owner can get 10 share free
+        ipshareSupply[subject] = updatedAmount;
+        // stake all the initial amount
+        _insertStaker(subject, subject, updatedAmount);
+        
+        ipshareBalance[subject][subject] = 0;
+        totalStakedIPshare[subject] += updatedAmount;
+
+        _updateStake(subject, subject, updatedAmount);
+
+        emit Stake(subject, subject, true, 0, updatedAmount);
+
         // create ipshare wont cost fees
-        emit CreateIPshare(msg.sender, amount + minHoldShares, createFee);
+        emit CreateIPshare(subject, amount + minHoldShares, createFee);
     }
 
     // ================================buy and sell=================================
@@ -201,6 +255,7 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         onlyDonut
         nonReentrant
         whenNotPaused
+        needTradable
         returns (uint256)
     {
         return _buyShares(subject, buyer, msg.value);
@@ -212,7 +267,9 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         uint256 value
     ) private returns (uint256) {
         // check subject exist
-        require(ipshareCreated[subject], "IPShare does not exist");
+        if (!ipshareCreated[subject]) {
+            revert IPShareNotExist();
+        }
         uint256 supply = ipshareSupply[subject];
         uint256 buyFunds = value;
         uint256 subjectFee = (buyFunds * subjectFeePercent) / 10000;
@@ -225,7 +282,9 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
 
         (bool success1, ) = donutFeeDestination.call{value: donutFee}("");
         (bool success2, ) = subject.call{value: subjectFee}("");
-        require(success1 && success2, "Cost trade fee fail");
+        if (!success1 || !success2) {
+            revert CostTradeFeeFail();
+        }
         ipshareBalance[subject][buyer] += ipshareReceived;
         ipshareSupply[subject] = supply + ipshareReceived;
 
@@ -246,14 +305,16 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     function sellShares(
         address subject,
         uint256 shareAmount
-    ) public override nonReentrant whenNotPaused {
+    ) public override nonReentrant whenNotPaused needTradable {
         uint256 supply = ipshareSupply[subject];
         uint sellAmount = shareAmount;
         if (ipshareBalance[subject][msg.sender] < shareAmount) {
             sellAmount = ipshareBalance[subject][msg.sender];
         }
         uint256 afterSupply = supply - sellAmount;
-        require(afterSupply >= minHoldShares, "Cannot sell the last 10 share");
+        if (afterSupply < minHoldShares) {
+            revert CanntSellLast10Shares();
+        }
 
         uint256 price = getPrice(afterSupply, sellAmount);
         ipshareBalance[subject][msg.sender] -= sellAmount;
@@ -267,7 +328,9 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         (bool success3, ) = msg.sender.call{
             value: price - subjectFee - donutFee
         }("");
-        require(success1 && success2 && success3, "Unable to send funds");
+        if (!(success1 && success2 && success3)) {
+            revert UnableToSendFunds();
+        }
 
         emit Trade(
             msg.sender,
@@ -287,7 +350,9 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     ) public payable override whenNotPaused {
         // c-share value capture
         // the method receive eth to buy back c-shares and distribute the c-shares to all the c-share stakers
-        require(msg.value > 0, "No funds");
+        if (msg.value == 0) {
+            revert NoFunds();
+        }
         uint256 obtainedAmount = _buyShares(subject, self, msg.value);
         // update acc
         if (totalStakedIPshare[subject] > 0) {
@@ -305,11 +370,10 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     function stake(
         address subject,
         uint256 amount
-    ) public nonReentrant whenNotPaused {
-        require(
-            amount > 0 && ipshareBalance[subject][msg.sender] >= amount,
-            "Insufficient shares"
-        );
+    ) public nonReentrant whenNotPaused needTradable {
+        if (!(amount > 0 && ipshareBalance[subject][msg.sender] >= amount)) {
+            revert InsufficientShares();
+        }
 
         uint256 index = stakerIndex[subject][msg.sender];
 
@@ -348,16 +412,17 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     function unstake(
         address subject,
         uint256 amount
-    ) public nonReentrant onlyStaker(subject) whenNotPaused {
+    ) public nonReentrant onlyStaker(subject) whenNotPaused needTradable {
         uint256 index = stakerIndex[subject][msg.sender];
-        require(
-            stakerMaxHeap[subject][index].redeemAmount == 0,
-            "In un-staking period now."
-        );
-        require(
-            amount > 0 && stakerMaxHeap[subject][index].amount >= amount,
-            "Wrong amount or insufficient stake amount"
-        );
+
+
+        if (stakerMaxHeap[subject][index].redeemAmount != 0) {
+            revert InUnstakingPeriodNow();
+        }
+        
+        if (!(amount > 0 && stakerMaxHeap[subject][index].amount >= amount)) {
+            revert WrongAmountOrInsufficientStakeAmount();
+        }
 
         // update profits
         stakerMaxHeap[subject][index].profit +=
@@ -387,14 +452,13 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     // The staker can redeem them after 7days after the start unstaking
     function redeem(address subject) public nonReentrant onlyStaker(subject) whenNotPaused {
         uint256 index = stakerIndex[subject][msg.sender];
-        require(
-            stakerMaxHeap[subject][index].redeemAmount > 0,
-            "No ipshare to redeem"
-        );
-        require(
-            stakerMaxHeap[subject][index].unlockTime <= block.timestamp,
-            "The ipshare is in locking period"
-        );
+
+        if (stakerMaxHeap[subject][index].redeemAmount == 0) {
+            revert NoIPShareToRedeem();
+        }
+        if (stakerMaxHeap[subject][index].unlockTime > block.timestamp) {
+            revert IPShareIsInlockingPeriodNow();
+        }
         ipshareBalance[subject][msg.sender] += stakerMaxHeap[subject][index]
             .redeemAmount;
         stakerMaxHeap[subject][index].redeemAmount = 0;
@@ -404,7 +468,9 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     function claim(address subject) public nonReentrant onlyStaker(subject) whenNotPaused {
         uint256 index = stakerIndex[subject][msg.sender];
         uint256 pendingProfits = getPendingProfits(subject, msg.sender);
-        require(pendingProfits > 0, "No profit to claim");
+        if (pendingProfits == 0) {
+            revert NoProfitToClaim();
+        }
         ipshareBalance[subject][msg.sender] += pendingProfits;
         ipshareBalance[subject][self] -= pendingProfits;
         stakerMaxHeap[subject][index].profit = 0;

@@ -1,6 +1,6 @@
 const { loadFixture } = require('@nomicfoundation/hardhat-toolbox/network-helpers');
 const { expect } = require('chai');
-const { deployFactory } = require('./common')
+const { deployPumpFactory } = require('./common')
 const { ethers } = require('hardhat')
 
 describe("Pump", function () {
@@ -18,7 +18,7 @@ describe("Pump", function () {
             carol,
             factory,
             socialContract
-        } = await loadFixture(deployFactory));
+        } = await loadFixture(deployPumpFactory));
     })
 
     function parseEther(n) {

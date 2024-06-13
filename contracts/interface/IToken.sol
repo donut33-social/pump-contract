@@ -2,12 +2,20 @@
 pragma solidity 0.8.20;
 
 interface IToken {
-    error TickHasBeenCreated();
     error TokenNotListed();
+    error IPShareNotCreated();
+    error TokenInitialized();
+    error ClaimOrderExist();
+    error InvalidSignature();
+    error InvalidClaimAmount();
+    error InvalidClaimer();
+
+    event ClaimDistributedReward(uint256 indexed timestamp, uint256 indexed amount);
+
     function initialize(
-        string memory tick_,
-        address socialDistributionContract_,
-        uint256 socialDistributionAmount_,
-        uint256 maxSupply_
+        address manager_,
+        address ipshareSubject_,
+        string memory tick_
     ) external;
+    
 }

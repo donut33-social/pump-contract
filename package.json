@@ -6,7 +6,8 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "test-ipshare": "hardhat test tests/ipshare"
+    "test-ipshare": "hardhat test tests/ipshare",
+    "test-pump": "hardhat test tests/pump"
   },
   "dependencies": {
     "@makerdao/multicall": "^0.12.0",

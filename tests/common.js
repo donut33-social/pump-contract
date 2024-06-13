@@ -3,22 +3,34 @@ const { parseAmount } = require("./helper");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
 async function deployPumpFactory() {
-    const [
+    const {
+        ipshare,
+        donut,
         owner,
         alice,
         bob,
         carol,
+        buyer,
+        donutFeeDestination,
+        dexFeeDestination,
+        subject,
         socialContract
-    ] = await ethers.getSigners();
+     } = await deployIPShare()
 
     const Factory = await ethers.getContractFactory('Pump');
-    const factory = await Factory.deploy(socialContract);
+    const pump = await Factory.deploy(socialContract, ipshare, donutFeeDestination);
     return {
+        ipshare,
+        donut,
         owner,
         alice,
         bob,
         carol,
-        factory,
+        buyer,
+        donutFeeDestination,
+        dexFeeDestination,
+        subject,
+        pump,
         socialContract
     }
 }
@@ -34,7 +46,7 @@ async function deployIPShare() {
         donutFeeDestination, 
         dexFeeDestination,
         subject,
-        ftSubject
+        socialContract
     ] = await ethers.getSigners();
 
     const ipshareFactory = await ethers.getContractFactory('IPShare');
@@ -54,7 +66,7 @@ async function deployIPShare() {
         donutFeeDestination,
         dexFeeDestination,
         subject,
-        ftSubject
+        socialContract
       };
 }
 

@@ -161,9 +161,13 @@ describe("IPShare", function () {
     describe('before trade', function() {
         it('Everyone can create ipshare', async () => {
             let amount = 0;
+            const bb = await ethers.provider.getBalance(alice)
             await expect(createIPShare(alice, amount, 5))
                 .to.emit(ipshare, "CreateIPshare")
                 .withArgs(alice.address, parseAmount(amount + 10), createFee);
+            
+
+            const ba = await ethers.provider.getBalance(alice)
 
             expect(await ipshare.ipshareCreated(alice)).eq(true);
 
@@ -243,7 +247,7 @@ describe("IPShare", function () {
             const supply = await ipshare.ipshareSupply(subject)
             const balance = await ipshare.ipshareBalance(subject, ipshare)
             const stakeInfo = await ipshare.getStakerInfo(subject, subject)
-            console.log(supply.toString() / 1e18, balance.toString() / 1e18, stakeInfo)
+            // console.log(supply.toString() / 1e18, balance.toString() / 1e18, stakeInfo)
         })
 
         it('Can claim captured shares', async () => {
@@ -256,11 +260,94 @@ describe("IPShare", function () {
             await ipshare.connect(subject).claim(subject)
             const balance = await ipshare.ipshareBalance(subject, ipshare)
             const suBalance = await ipshare.ipshareBalance(subject, subject)
-            console.log(balance.toString() / 1e18, suBalance.toString() / 1e18)
+            // console.log(balance.toString() / 1e18, suBalance.toString() / 1e18)
         })
     })
 
     describe('Start trade', function() {
-        
+        beforeEach(async () => {
+            await ipshare.adminStartTrade();
+            await createIPShare(subject, 10, 5)
+        })
+
+        it('Can buy and sell shares', async () => {
+            // buyer,
+            // subject,
+            // true,
+            // ipshareReceived,
+            // buyFunds,
+            // donutFee,
+            // subjectFee,
+            // supply + ipshareReceived
+            await expect(buyIPShare(subject, alice, 0.01))
+                .to.emit(ipshare, 'Trade')
+                .withArgs(
+                    alice,
+                    subject,
+                    true,
+                    241412431515184045120n,
+                    10000000000000000n,
+                    250000000000000n,
+                    450000000000000n,
+                    261412431515184045120n
+                )
+
+            await expect(sellIPShare(subject, alice, parseAmount(100)))
+                .to.emit(ipshare, 'Trade')
+                .withArgs(
+                    alice,
+                    subject,
+                    false,
+                    100000000000000000000n,
+                    7113835864452455n,
+                    177845896611311n,
+                    320122613900360n,
+                    161412431515184045120n
+                )
+        })
+
+        it('Can stake and unstake shares', async () => {
+            await buyIPShare(subject, alice, 0.001)
+            await expect(ipshare.connect(alice).stake(subject, parseAmount(30)))
+                .to.emit(ipshare, 'Stake')
+                .withArgs(alice, subject, true, parseAmount(30), parseAmount(30))
+            await expect(ipshare.connect(alice).stake(subject, parseAmount(20)))
+                .to.emit(ipshare, 'Stake')
+                .withArgs(alice, subject, true, parseAmount(20), parseAmount(50))
+
+            await expect(ipshare.connect(alice).unstake(subject, parseAmount(10)))
+                .to.emit(ipshare, 'Stake')
+                .withArgs(alice, subject, false, parseAmount(10), parseAmount(40))
+
+            await time.increase(86400 * 8)
+            // redeem
+            const balanceBefore = await ipshare.ipshareBalance(subject, alice)
+            await ipshare.connect(alice).redeem(subject)
+            const balanceAfter = await ipshare.ipshareBalance(subject, alice)
+            expect(balanceBefore + parseAmount(10)).eq(balanceAfter)
+        })
+
+        it("Can capture value and claim reward", async () => {
+            await buyIPShare(subject, alice, 0.001)
+            await ipshare.connect(alice).stake(subject, parseAmount(10))
+            await expect(ipshare.valueCapture(subject, {
+                value: parseAmount(0.1)
+            })).to.emit(ipshare, 'ValueCaptured')
+            .withArgs(subject, owner, parseAmount(0.1))
+
+            const sbb = await ipshare.ipshareBalance(subject, subject)
+            const abb = await ipshare.ipshareBalance(subject, alice)
+
+            await ipshare.connect(subject).claim(subject)
+            await ipshare.connect(alice).claim(subject)
+
+            const sba = await ipshare.ipshareBalance(subject, subject)
+            const aba = await ipshare.ipshareBalance(subject, alice)
+            
+            expect(sba).gt(sbb)
+            expect(aba).gt(abb)
+            expect((sba - sbb) / (aba - abb)).eq(2)
+            // console.log(sba - sbb, aba - abb)
+        })
     })
 })

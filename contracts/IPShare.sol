@@ -214,7 +214,7 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
             revert InsufficientPay();
         }
         
-        if (msg.value <= price + createFee) {
+        if (msg.value > price + createFee) {
             (bool success, ) = msg.sender.call{value: msg.value - price - createFee}("");
             if (!success) {
                 revert RefundFail();

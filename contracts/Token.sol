@@ -100,7 +100,6 @@ contract Token is IToken, ERC20 {
     }
 
     function userClaim(uint256 orderId, uint256 amount, address user, bytes calldata signature) public {
-        address signer = IPump(manager).getClaimSigner();
         if (!listed) {
             revert TokenNotListed();
         }
@@ -131,9 +130,22 @@ contract Token is IToken, ERC20 {
         }
 
         transfer(msg.sender, amount);
+
+        emit UserClaimReward(orderId, msg.sender, amount);
     }
 
     /********************************** bonding curve ********************************/
+    function buyToken(uint256 amount) public {
+        if (listed) {
+            revert TokenListed();
+        }
+    }
+
+    function sellToken(uint256 amount) public {
+        if (listed) {
+            revert TokenListed();
+        }
+    }
 
     /********************************** to dex ********************************/
 
@@ -148,19 +160,11 @@ contract Token is IToken, ERC20 {
     }
 
     // only listed token can do erc20 transfer functions
-    function transfer(address from, address to, uint256 amount) internal override {
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
         if (listed) {
-            super.transfer(from, to, amount);
+            return super._beforeTokenTransfer(from, to, amount);
         }else if (from == address(this)) {
-            super.transfer(from, to, amount);
-        }else {
-            revert TokenNotListed();
-        }
-    }
-
-    function approve(address owner, address spender, uint256 amount) internal override {
-        if (listed) {
-            super.approve(owner, spender, amount);
+            return super._beforeTokenTransfer(from, to, amount);
         }else {
             revert TokenNotListed();
         }
@@ -179,6 +183,6 @@ contract Token is IToken, ERC20 {
         bytes memory profix = "\x19Ethereum Signed Message:\n32";
         bytes32 info = keccak256(abi.encodePacked(profix, data));
         address addr = ecrecover(info, v, r, s);
-        return addr == signAddress;
+        return addr == IPump(manager).getClaimSigner();
     }
 }

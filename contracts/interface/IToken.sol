@@ -3,6 +3,7 @@ pragma solidity 0.8.20;
 
 interface IToken {
     error TokenNotListed();
+    error TokenListed();
     error IPShareNotCreated();
     error TokenInitialized();
     error ClaimOrderExist();
@@ -11,6 +12,7 @@ interface IToken {
     error InvalidClaimer();
 
     event ClaimDistributedReward(uint256 indexed timestamp, uint256 indexed amount);
+    event UserClaimReward(uint256 indexed orderId, address indexed user, uint256 indexed amount);
 
     function initialize(
         address manager_,

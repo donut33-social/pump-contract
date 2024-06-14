@@ -20,7 +20,6 @@ interface IPump {
     event ClaimSignerChanged(address indexed oldSigner, address indexed newSigner);
 
     function getIPShare() external view returns (address);
-    function getSocialDistributionContract() external view returns (address);
     function getFeeReceiver() external view returns (address);
     function getFeeRatio() external view returns (uint256[2] memory);
     function createToken(string calldata tick) external payable returns (address);

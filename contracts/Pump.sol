@@ -15,7 +15,7 @@ contract Pump is Ownable, Nonces, IPump {
     uint256 public createFee = 0.00005 ether;
     address private feeReceiver;
     address private claimSigner;
-    uint256[2] private feeRatio;  // 0: to donut; 1: to salesman
+    uint256[2] private feeRatio;  // 0: to tiptag; 1: to salesman
 
     mapping(address => bool) public createdTokens;
     mapping(string => bool) public createdTicks;

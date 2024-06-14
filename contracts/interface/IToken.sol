@@ -10,9 +10,21 @@ interface IToken {
     error InvalidSignature();
     error InvalidClaimAmount();
     error InvalidClaimer();
+    error OutOfSlippage();
+    error InsufficientFund();
+    error RefundFail();
+    error CostFeeFail();
 
     event ClaimDistributedReward(uint256 indexed timestamp, uint256 indexed amount);
     event UserClaimReward(uint256 indexed orderId, address indexed user, uint256 indexed amount);
+    event Trade(
+        address indexed buyer,
+        bool isBuy,
+        uint256 tokenAmount,
+        uint256 ethAmount,
+        uint256 tiptagFee,
+        uint256 sellsmanFee
+    );
 
     function initialize(
         address manager_,

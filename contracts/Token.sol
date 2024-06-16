@@ -186,13 +186,76 @@ contract Token is IToken, ERC20, ReentrancyGuard {
                 sellsmanFee
             );
             // build liquidity pool
-        } else {
 
+            return actualAmount;
+        } else {
+            (bool success, ) = tiptapFeeAddress.call{value: tiptagFee}("");
+            if (!success) {
+                revert CostFeeFail();
+            }
+            IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(ipshareSubject);
+            transfer(msg.sender, tokenReceived);
+            bondingCurveSupply += tokenReceived;
+            emit Trade(
+                msg.sender,
+                true,
+                tokenReceived,
+                msg.value,
+                tiptagFee,
+                sellsmanFee
+            );
+            return tokenReceived;
         }
     }
 
-    function sellToken(uint256 amount, address sellsman, uint8 slippage) public nonReentrant {
+    function sellToken(uint256 amount, uint256 expectReceive, address sellsman, uint8 slippage) public nonReentrant {
         sellsman = _checkBondingCurveState(sellsman);
+
+        uint256 sellAmount = amount;
+        if (balanceOf(msg.sender) < sellAmount) {
+            sellAmount = balanceOf(msg.sender);
+        }
+        uint256 afterSupply = 0;
+        afterSupply = bondingCurveSupply - sellAmount;
+
+        uint256 price = getPrice(afterSupply, sellAmount);
+
+        uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
+        address tiptagFeeAddress = IPump(manager).getFeeReceiver();
+
+        uint256 tiptagFee = price * feeRatio[0] / divisor;
+        uint256 sellsmanFee = price * feeRatio[1] / divisor;
+        uint256 receivedEth = price - tiptagFee - sellsmanFee;
+        
+        if (receivedEth > (divisor + slippage) * expectReceive / divisor
+            || receivedEth < (divisor - slippage) * expectReceive / divisor) {
+            revert OutOfSlippage();
+        }
+
+        _approve(msg.sender, address(this), 1 << 255);
+        transferFrom(msg.sender, address(this), sellAmount);
+
+        {
+            (bool success1, ) = tiptagFeeAddress.call{value: tiptagFee}("");
+            (bool success2, ) = msg.sender.call{
+                value: receivedEth
+            }("");
+            if (!success1 || !success2) {
+                revert RefundFail();
+            }
+        }
+
+        IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(ipshareSubject);
+        bondingCurveSupply -= sellAmount;
+
+        emit Trade(
+            msg.sender,
+            false,
+            sellAmount,
+            price,
+            tiptagFee,
+            sellsmanFee
+        );
     }
 
     function _checkBondingCurveState(address sellsman) private returns (address) {

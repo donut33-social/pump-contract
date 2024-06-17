@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interface/IToken.sol";
 import "./interface/IIPShare.sol";
 import "./interface/IPump.sol";
-import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import "./interface/IUniswapV2Router02.sol";
+import "./interface/IUniswapV2Factory.sol";
 import "hardhat/console.sol";
-
 
 contract Token is IToken, ERC20, ReentrancyGuard {
     string private _name;
@@ -47,11 +47,14 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     bool initialized = false;
 
     // dex
-    address private constant WETH = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address private constant positionManager = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address private constant uniswapV3Facotry = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address private immutable WETH = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address private immutable uniswapV2Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address private immutable uniswapV2Router02 = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+
+    // address private constant positionManager = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    // address private constant uniswapV3Facotry = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
     address private constant BlackHole = 0x000000000000000000000000000000000000dEaD;
-    uint160 private constant sqrtPrice = 343;
+    // uint160 private constant sqrtPrice = 343;
     uint256 private constant ethAmountToDex = 1 ether;
 
     function initialize(address manager_, address ipshareSubject_, string memory tick) public override {
@@ -182,7 +185,6 @@ contract Token is IToken, ERC20, ReentrancyGuard {
                     revert RefundFail();
                 }
             }
-            listed = true;
 
             buyFunds = usedEth;
             tiptagFee = (usedEth * feeRatio[0]) / divisor;
@@ -198,7 +200,8 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
             emit Trade(msg.sender, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
             // build liquidity pool
-            makeLiquidityPool();
+            _makeLiquidityPool();
+            listed = true;
             return actualAmount;
         } else {
             (bool success, ) = tiptapFeeAddress.call{value: tiptagFee}("");
@@ -316,41 +319,51 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     }
 
     /********************************** to dex ********************************/
-    function makeLiquidityPool() public {
-        _approve(address(this), positionManager, liquidityAmount);
-        // create pool
-        address pool = INonfungiblePositionManager(positionManager).createAndInitializePoolIfNecessary(
-            address(this),
-            WETH,
-            500,
-            sqrtPrice
-        );
+    function _makeLiquidityPool() private {
+        _approve(address(this), uniswapV2Router02, liquidityAmount);
 
-        if (pool == address(0)) {
-            revert CreateDexPoolFail();
-        }
-
-        INonfungiblePositionManager.MintParams memory params 
-            = INonfungiblePositionManager.MintParams({
-            token0: address(this),
-            token1: WETH,
-            fee: 500,
-            tickLower: -887220,
-            tickUpper: 887220,
-            amount0Desired: liquidityAmount,
-            amount1Desired: ethAmountToDex,
-            amount0Min: 0,
-            amount1Min: 0,
-            recipient: BlackHole,
-            deadline: block.timestamp
-        });
-
-        // // add liquidity
-        INonfungiblePositionManager(positionManager).mint{
+        // v2
+        // create pair
+        IUniswapV2Factory(uniswapV2Factory).createPair(address(this), WETH);
+        // add liquidity
+        IUniswapV2Router02(uniswapV2Router02).addLiquidityETH{
             value: ethAmountToDex
-        }(
-            params
-        );
+        }(address(this), liquidityAmount, 0, 0, BlackHole, block.timestamp);
+
+        // v3
+        // create pool
+        // address pool = INonfungiblePositionManager(positionManager).createAndInitializePoolIfNecessary(
+        //     address(this),
+        //     WETH,
+        //     500,
+        //     sqrtPrice
+        // );
+
+        // if (pool == address(0)) {
+        //     revert CreateDexPoolFail();
+        // }
+
+        // INonfungiblePositionManager.MintParams memory params 
+        //     = INonfungiblePositionManager.MintParams({
+        //     token0: address(this),
+        //     token1: WETH,
+        //     fee: 500,
+        //     tickLower: -887220,
+        //     tickUpper: 887220,
+        //     amount0Desired: liquidityAmount,
+        //     amount1Desired: ethAmountToDex,
+        //     amount0Min: 0,
+        //     amount1Min: 0,
+        //     recipient: BlackHole,
+        //     deadline: block.timestamp
+        // });
+
+        // // // add liquidity
+        // INonfungiblePositionManager(positionManager).mint{
+        //     value: ethAmountToDex
+        // }(
+        //     params
+        // );
 
     }
 
@@ -367,7 +380,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
         if (listed) {
             return super._beforeTokenTransfer(from, to, amount);
-        } else if (from == address(this) || from == address(0)) {
+        } else if (from == address(this) || to == address(this) || from == address(0)) {
             return super._beforeTokenTransfer(from, to, amount);
         } else {
             revert TokenNotListed();

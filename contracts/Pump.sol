@@ -38,8 +38,9 @@ contract Pump is Ownable, Nonces, IPump {
         emit NewToken(tick, tokenImplementation, msg.sender);
     }
 
-    // admin function
+    receive() external payable {}
 
+    // admin function
     function adminChangeIPShare(address _ipshare) public onlyOwner {
         emit IPShareChanged(ipshare, _ipshare);
         ipshare = _ipshare;

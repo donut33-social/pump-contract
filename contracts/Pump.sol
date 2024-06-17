@@ -95,6 +95,7 @@ contract Pump is Ownable, Nonces, IPump {
 
         // check user created ipshare
         address creator = tx.origin;
+        
         if (!IIPShare(ipshare).ipshareCreated(creator)) {
             // create ipshare
             IIPShare(ipshare).createShare(creator, 0);

@@ -7,6 +7,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interface/IToken.sol";
 import "./interface/IIPShare.sol";
 import "./interface/IPump.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import "hardhat/console.sol";
+
 
 contract Token is IToken, ERC20, ReentrancyGuard {
     string private _name;
@@ -15,9 +18,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     uint256 private constant divisor = 10000;
 
     // distribute token total amount
-    uint256 private constant socialDistributionAmount = 10000000;
-    uint256 private constant bondingCurveTotalAmount = 7000000;
-    uint256 private constant liquidityAmount = 2000000;
+    uint256 private constant socialDistributionAmount = 1000000 ether;
+    uint256 private constant bondingCurveTotalAmount = 7000000 ether;
+    uint256 private constant liquidityAmount = 2000000 ether;
 
     // social distribution
     struct Distribution {
@@ -42,6 +45,14 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     address public ipshareSubject;
     bool public listed = false;
     bool initialized = false;
+
+    // dex
+    address private constant WETH = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address private constant positionManager = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address private constant uniswapV3Facotry = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address private constant BlackHole = 0x000000000000000000000000000000000000dEaD;
+    uint160 private constant sqrtPrice = 343;
+    uint256 private constant ethAmountToDex = 1 ether;
 
     function initialize(address manager_, address ipshareSubject_, string memory tick) public override {
         if (initialized) {
@@ -135,17 +146,23 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     }
 
     /********************************** bonding curve ********************************/
-    function buyToken(uint256 expectAmount, address sellsman, uint8 slippage) public payable nonReentrant returns (uint256) {
+    function buyToken(
+        uint256 expectAmount,
+        address sellsman,
+        uint8 slippage
+    ) public payable nonReentrant returns (uint256) {
         sellsman = _checkBondingCurveState(sellsman);
 
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
         uint256 buyFunds = msg.value;
-        uint256 tiptagFee = msg.value * feeRatio[0] / divisor;
-        uint256 sellsmanFee = msg.value * feeRatio[1] / divisor;
-        
+        uint256 tiptagFee = (msg.value * feeRatio[0]) / divisor;
+        uint256 sellsmanFee = (msg.value * feeRatio[1]) / divisor;
+
         uint256 tokenReceived = getBuyAmountByValue(buyFunds - tiptagFee - sellsmanFee);
-        if (tokenReceived > expectAmount * (divisor + slippage) / divisor 
-            || tokenReceived < expectAmount * (divisor - slippage) / divisor) {
+        if (
+            tokenReceived > (expectAmount * (divisor + slippage)) / divisor ||
+            tokenReceived < (expectAmount * (divisor - slippage)) / divisor
+        ) {
             revert OutOfSlippage();
         }
 
@@ -155,19 +172,21 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             uint256 actualAmount = bondingCurveTotalAmount - bondingCurveSupply;
             // calculate used eth
             uint256 usedEth = getBuyPriceAfterFee(actualAmount);
-            if (usedEth > msg.value){
+            if (usedEth > msg.value) {
                 revert InsufficientFund();
             }
             if (usedEth < msg.value) {
                 // refund
-                 (bool success, ) = msg.sender.call{value: msg.value - usedEth}("");
+                (bool success, ) = msg.sender.call{value: msg.value - usedEth}("");
                 if (!success) {
                     revert RefundFail();
                 }
             }
+            listed = true;
+
             buyFunds = usedEth;
-            tiptagFee = usedEth * feeRatio[0] / divisor;
-            sellsmanFee = usedEth * feeRatio[1] / divisor;
+            tiptagFee = (usedEth * feeRatio[0]) / divisor;
+            sellsmanFee = (usedEth * feeRatio[1]) / divisor;
 
             (bool success1, ) = tiptapFeeAddress.call{value: tiptagFee}("");
             if (!success1) {
@@ -177,16 +196,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             transfer(msg.sender, actualAmount);
             bondingCurveSupply += actualAmount;
 
-            emit Trade(
-                msg.sender,
-                true,
-                actualAmount,
-                usedEth,
-                tiptagFee,
-                sellsmanFee
-            );
+            emit Trade(msg.sender, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
             // build liquidity pool
-
+            makeLiquidityPool();
             return actualAmount;
         } else {
             (bool success, ) = tiptapFeeAddress.call{value: tiptagFee}("");
@@ -196,14 +208,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(ipshareSubject);
             transfer(msg.sender, tokenReceived);
             bondingCurveSupply += tokenReceived;
-            emit Trade(
-                msg.sender,
-                true,
-                tokenReceived,
-                msg.value,
-                tiptagFee,
-                sellsmanFee
-            );
+            emit Trade(msg.sender, true, tokenReceived, msg.value, tiptagFee, sellsmanFee);
             return tokenReceived;
         }
     }
@@ -223,12 +228,14 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
         address tiptagFeeAddress = IPump(manager).getFeeReceiver();
 
-        uint256 tiptagFee = price * feeRatio[0] / divisor;
-        uint256 sellsmanFee = price * feeRatio[1] / divisor;
+        uint256 tiptagFee = (price * feeRatio[0]) / divisor;
+        uint256 sellsmanFee = (price * feeRatio[1]) / divisor;
         uint256 receivedEth = price - tiptagFee - sellsmanFee;
-        
-        if (receivedEth > (divisor + slippage) * expectReceive / divisor
-            || receivedEth < (divisor - slippage) * expectReceive / divisor) {
+
+        if (
+            receivedEth > ((divisor + slippage) * expectReceive) / divisor ||
+            receivedEth < ((divisor - slippage) * expectReceive) / divisor
+        ) {
             revert OutOfSlippage();
         }
 
@@ -237,9 +244,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
         {
             (bool success1, ) = tiptagFeeAddress.call{value: tiptagFee}("");
-            (bool success2, ) = msg.sender.call{
-                value: receivedEth
-            }("");
+            (bool success2, ) = msg.sender.call{value: receivedEth}("");
             if (!success1 || !success2) {
                 revert RefundFail();
             }
@@ -248,14 +253,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(ipshareSubject);
         bondingCurveSupply -= sellAmount;
 
-        emit Trade(
-            msg.sender,
-            false,
-            sellAmount,
-            price,
-            tiptagFee,
-            sellsmanFee
-        );
+        emit Trade(msg.sender, false, sellAmount, price, tiptagFee, sellsmanFee);
     }
 
     function _checkBondingCurveState(address sellsman) private returns (address) {
@@ -264,7 +262,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         }
         if (sellsman == address(0)) {
             sellsman = ipshareSubject;
-        }else if (!IIPShare(IPump(manager).getIPShare()).ipshareCreated(sellsman)) {
+        } else if (!IIPShare(IPump(manager).getIPShare()).ipshareCreated(sellsman)) {
             revert IPShareNotCreated();
         }
         return sellsman;
@@ -289,13 +287,13 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     function getBuyPriceAfterFee(uint256 amount) public view returns (uint256) {
         uint256 price = getBuyPrice(amount);
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
-        return price * (divisor + feeRatio[0] + feeRatio[1]) / divisor;
+        return (price * (divisor + feeRatio[0] + feeRatio[1])) / divisor;
     }
 
     function getSellPriceAfterFee(uint256 amount) public view returns (uint256) {
         uint256 price = getSellPrice(amount);
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
-        return price * (divisor - feeRatio[0] - feeRatio[1]) / divisor;
+        return (price * (divisor - feeRatio[0] - feeRatio[1])) / divisor;
     }
 
     function getBuyAmountByValue(uint256 ethAmount) public view returns (uint256) {
@@ -318,6 +316,40 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     }
 
     /********************************** to dex ********************************/
+    function makeLiquidityPool() public {
+        _approve(address(this), positionManager, liquidityAmount);
+        // create pool
+        address pool = INonfungiblePositionManager(positionManager).createAndInitializePoolIfNecessary(
+            address(this),
+            WETH,
+            500,
+            sqrtPrice
+        );
+
+        if (pool == address(0)) {
+            revert CreateDexPoolFail();
+        }
+
+        INonfungiblePositionManager.MintParams memory params 
+            = INonfungiblePositionManager.MintParams({
+            token0: address(this),
+            token1: WETH,
+            fee: 500,
+            tickLower: -887220,
+            tickUpper: 887220,
+            amount0Desired: liquidityAmount,
+            amount1Desired: ethAmountToDex,
+            amount0Min: 0,
+            amount1Min: 0,
+            recipient: BlackHole,
+            deadline: block.timestamp
+        });
+
+        // // add liquidity
+        INonfungiblePositionManager(positionManager).mint(
+            params
+        );
+    }
 
     /********************************** erc20 function ********************************/
     function name() public view override returns (string memory) {
@@ -332,7 +364,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
         if (listed) {
             return super._beforeTokenTransfer(from, to, amount);
-        } else if (from == address(this)) {
+        } else if (from == address(this) || from == address(0)) {
             return super._beforeTokenTransfer(from, to, amount);
         } else {
             revert TokenNotListed();

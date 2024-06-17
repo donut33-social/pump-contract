@@ -1,6 +1,7 @@
 const { ethers } = require("hardhat");
 const { parseAmount } = require("./helper");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
+const { UniswapV3Deployer } = require('./vendor/UniswapV3Deployer')
 
 async function deployPumpFactory() {
     const {
@@ -16,9 +17,10 @@ async function deployPumpFactory() {
         subject,
         socialContract
      } = await deployIPShare()
+     const uniContracts = await UniswapV3Deployer.deploy(owner);
 
     const Factory = await ethers.getContractFactory('Pump');
-    const pump = await Factory.deploy(socialContract, ipshare, donutFeeDestination);
+    const pump = await Factory.deploy(ipshare, donutFeeDestination);
     return {
         ipshare,
         donut,
@@ -52,6 +54,7 @@ async function deployIPShare() {
     const ipshareFactory = await ethers.getContractFactory('IPShare');
     const ipshare = await ipshareFactory.deploy();
     await ipshare.adminSetDonutFeeDestination(donutFeeDestination);
+    console.log('ipsharef, ', ipshare.target);
     return {
         // contracts
         ipshare,

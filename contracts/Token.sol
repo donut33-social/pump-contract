@@ -346,9 +346,12 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         });
 
         // // add liquidity
-        INonfungiblePositionManager(positionManager).mint(
+        INonfungiblePositionManager(positionManager).mint{
+            value: ethAmountToDex
+        }(
             params
         );
+
     }
 
     /********************************** erc20 function ********************************/

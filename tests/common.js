@@ -14,10 +14,26 @@ async function deployPumpFactory() {
         buyer,
         donutFeeDestination,
         dexFeeDestination,
-        subject,
-        socialContract
+        subject
      } = await deployIPShare()
-     const uniContracts = await UniswapV3Deployer.deploy(owner);
+     
+       // deploy weth
+    const wethFactory = await ethers.getContractFactory("WETH9");
+    const weth = await wethFactory.deploy();
+
+        // deploy dex
+    const UniswapV2Factory = await ethers.getContractFactory("UniswapV2Factory");
+    const uniswapV2Factory = await UniswapV2Factory.deploy(dexFeeDestination);
+    await uniswapV2Factory.connect(dexFeeDestination).setFeeTo(dexFeeDestination);
+
+    let initCode = await uniswapV2Factory.pairCodeHash();
+    // need set this code to pairFor(function) of UniswapV2Library
+    initCode = initCode.replace('0x', '');
+    console.log('init code:', initCode);
+
+    // deploy router
+    let routerFactory = await ethers.getContractFactory("UniswapV2Router02");
+    let uniswapV2Router02 = await routerFactory.deploy(uniswapV2Factory, weth);
 
     const Factory = await ethers.getContractFactory('Pump');
     const pump = await Factory.deploy(ipshare, donutFeeDestination);
@@ -33,7 +49,9 @@ async function deployPumpFactory() {
         dexFeeDestination,
         subject,
         pump,
-        socialContract
+        weth,
+        uniswapV2Factory,
+        uniswapV2Router02
     }
 }
 
@@ -47,8 +65,7 @@ async function deployIPShare() {
         buyer, 
         donutFeeDestination, 
         dexFeeDestination,
-        subject,
-        socialContract
+        subject
     ] = await ethers.getSigners();
 
     const ipshareFactory = await ethers.getContractFactory('IPShare');
@@ -68,8 +85,7 @@ async function deployIPShare() {
         // fee receivers
         donutFeeDestination,
         dexFeeDestination,
-        subject,
-        socialContract
+        subject
       };
 }
 

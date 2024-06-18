@@ -47,9 +47,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     bool initialized = false;
 
     // dex
-    address private immutable WETH = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address private immutable uniswapV2Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address private immutable uniswapV2Router02 = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address private WETH = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address private uniswapV2Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address private uniswapV2Router02 = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
 
     // address private constant positionManager = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
     // address private constant uniswapV3Facotry = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
@@ -68,6 +68,12 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         _symbol = tick;
         startTime = block.timestamp - (block.timestamp % secondPerDay);
         _mint(address(this), socialDistributionAmount + bondingCurveTotalAmount + liquidityAmount);
+    }
+
+    function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
+        WETH = _WETH;
+        uniswapV2Factory = _uniswapV2Factory;
+        uniswapV2Router02 = _uniswapV2Router02;
     }
 
     /********************************** social distribution ********************************/
@@ -163,8 +169,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
         uint256 tokenReceived = getBuyAmountByValue(buyFunds - tiptagFee - sellsmanFee);
         if (
-            tokenReceived > (expectAmount * (divisor + slippage)) / divisor ||
-            tokenReceived < (expectAmount * (divisor - slippage)) / divisor
+            slippage > 0 &&
+            (tokenReceived > (expectAmount * (divisor + slippage)) / divisor ||
+                tokenReceived < (expectAmount * (divisor - slippage)) / divisor)
         ) {
             revert OutOfSlippage();
         }
@@ -195,7 +202,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
                 revert CostFeeFail();
             }
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(ipshareSubject);
-            transfer(msg.sender, actualAmount);
+            this.transfer(msg.sender, actualAmount);
             bondingCurveSupply += actualAmount;
 
             emit Trade(msg.sender, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
@@ -209,7 +216,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
                 revert CostFeeFail();
             }
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(ipshareSubject);
-            transfer(msg.sender, tokenReceived);
+            this.transfer(msg.sender, tokenReceived);
             bondingCurveSupply += tokenReceived;
             emit Trade(msg.sender, true, tokenReceived, msg.value, tiptagFee, sellsmanFee);
             return tokenReceived;
@@ -236,14 +243,14 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         uint256 receivedEth = price - tiptagFee - sellsmanFee;
 
         if (
-            receivedEth > ((divisor + slippage) * expectReceive) / divisor ||
-            receivedEth < ((divisor - slippage) * expectReceive) / divisor
+            expectReceive > 0 &&
+            (receivedEth > ((divisor + slippage) * expectReceive) / divisor ||
+                receivedEth < ((divisor - slippage) * expectReceive) / divisor)
         ) {
             revert OutOfSlippage();
         }
 
-        _approve(msg.sender, address(this), 1 << 255);
-        transferFrom(msg.sender, address(this), sellAmount);
+        transfer(address(this), sellAmount);
 
         {
             (bool success1, ) = tiptagFeeAddress.call{value: tiptagFee}("");
@@ -326,9 +333,14 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         // create pair
         IUniswapV2Factory(uniswapV2Factory).createPair(address(this), WETH);
         // add liquidity
-        IUniswapV2Router02(uniswapV2Router02).addLiquidityETH{
-            value: ethAmountToDex
-        }(address(this), liquidityAmount, 0, 0, BlackHole, block.timestamp);
+        IUniswapV2Router02(uniswapV2Router02).addLiquidityETH{value: ethAmountToDex}(
+            address(this),
+            liquidityAmount,
+            0,
+            0,
+            BlackHole,
+            block.timestamp
+        );
 
         // v3
         // create pool
@@ -343,7 +355,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         //     revert CreateDexPoolFail();
         // }
 
-        // INonfungiblePositionManager.MintParams memory params 
+        // INonfungiblePositionManager.MintParams memory params
         //     = INonfungiblePositionManager.MintParams({
         //     token0: address(this),
         //     token1: WETH,
@@ -364,7 +376,6 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         // }(
         //     params
         // );
-
     }
 
     /********************************** erc20 function ********************************/

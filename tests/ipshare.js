@@ -25,7 +25,7 @@ describe("IPShare", function () {
     }
 
     async function createIPShare(user, amount, price) {
-        return ipshare.connect(user).createShare(user, parseAmount(amount), { value: parseAmount(price) })
+        return ipshare.connect(user).createShare(user)
     }
 
     async function buyIPShare(subject, buyer, amount) {
@@ -164,7 +164,7 @@ describe("IPShare", function () {
             const bb = await ethers.provider.getBalance(alice)
             await expect(createIPShare(alice, amount, 5))
                 .to.emit(ipshare, "CreateIPshare")
-                .withArgs(alice.address, parseAmount(amount + 10), createFee);
+                .withArgs(alice.address, parseAmount(10), createFee);
             
 
             const ba = await ethers.provider.getBalance(alice)
@@ -174,7 +174,7 @@ describe("IPShare", function () {
             amount = 10
             await expect(createIPShare(bob, amount, 5))
                 .to.emit(ipshare, "CreateIPshare")
-                .withArgs(bob.address, parseAmount(amount + 10), createFee);
+                .withArgs(bob.address, parseAmount(10), createFee);
 
             expect(await ipshare.ipshareCreated(bob)).eq(true);
         })
@@ -200,15 +200,15 @@ describe("IPShare", function () {
 
         it('Can create ipshare for other one', async () => {
             let amount = 1;
-            await expect(ipshare.connect(alice).createShare(bob, parseAmount(amount), { value: parseAmount(5) }))
+            await expect(ipshare.connect(alice).createShare(bob))
             .to.emit(ipshare, 'CreateIPshare')
-            .withArgs(bob.address, parseAmount(amount + 10), createFee);
+            .withArgs(bob.address, parseAmount(10), createFee);
             expect(await ipshare.ipshareBalance(alice, alice)).eq(0);
             expect(await ipshare.ipshareBalance(alice, bob)).eq(0);
             expect(await ipshare.ipshareCreated(alice)).eq(false);
             expect(await ipshare.ipshareBalance(bob, alice)).eq(0);
             expect(await ipshare.ipshareBalance(bob, bob)).eq(0);
-            expect(await ipshare.ipshareSupply(bob)).eq(parseAmount(amount + 10))
+            expect(await ipshare.ipshareSupply(bob)).eq(parseAmount(10))
         })
 
         it('Auto stake when create ipshare', async () => {
@@ -224,17 +224,16 @@ describe("IPShare", function () {
             expect(aliceStakeInfo[0]).eq(alice);
             expect(aliceStakeInfo[1]).eq(parseAmount(amount + 10))
 
-            amount = 10
             await expect(createIPShare(bob, amount, 5))
                 .to.emit(ipshare, "CreateIPshare")
-                .withArgs(bob.address, parseAmount(amount + 10), createFee);
+                .withArgs(bob.address, parseAmount(10), createFee);
 
             expect(await ipshare.ipshareCreated(bob)).eq(true);
             expect(await ipshare.ipshareBalance(bob, bob)).eq(0);
-            expect(await ipshare.ipshareSupply(bob)).eq(parseAmount(amount + 10));
+            expect(await ipshare.ipshareSupply(bob)).eq(parseAmount(10));
             const bobStakeInfo = await ipshare.getStakerInfo(bob, bob);
             expect(bobStakeInfo[0]).eq(bob);
-            expect(bobStakeInfo[1]).eq(parseAmount(amount + 10))
+            expect(bobStakeInfo[1]).eq(parseAmount(10))
         })
 
         it("Can capture value", async () => {
@@ -267,7 +266,7 @@ describe("IPShare", function () {
     describe('Start trade', function() {
         beforeEach(async () => {
             await ipshare.adminStartTrade();
-            await createIPShare(subject, 10, 5)
+            await createIPShare(subject, 0, 0)
         })
 
         it('Can buy and sell shares', async () => {
@@ -285,11 +284,11 @@ describe("IPShare", function () {
                     alice,
                     subject,
                     true,
-                    241412431515184045120n,
+                    251378282274884972202n,
                     10000000000000000n,
                     250000000000000n,
                     450000000000000n,
-                    261412431515184045120n
+                    261378282274884972202n
                 )
 
             await expect(sellIPShare(subject, alice, parseAmount(100)))
@@ -299,10 +298,10 @@ describe("IPShare", function () {
                     subject,
                     false,
                     100000000000000000000n,
-                    7113835864452455n,
-                    177845896611311n,
-                    320122613900360n,
-                    161412431515184045120n
+                    7111579929814731n,
+                    177789498245368n,
+                    320021096841662n,
+                    161378282274884972202n
                 )
         })
 
@@ -346,7 +345,7 @@ describe("IPShare", function () {
             
             expect(sba).gt(sbb)
             expect(aba).gt(abb)
-            expect((sba - sbb) / (aba - abb)).eq(2)
+            expect((sba - sbb) / (aba - abb)).eq(1)
             // console.log(sba - sbb, aba - abb)
         })
     })

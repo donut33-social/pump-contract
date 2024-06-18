@@ -208,18 +208,16 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     /**
      * @dev only ft user can create his c share
      * creation need no fee
-     * @param amount the initial ipshare amount except minHoldShares free share
      */
     function createShare(
-        address subject,
-        uint256 amount
+        address subject
     ) public payable override nonReentrant whenNotPaused {
         // check if ipshare already created
         if (_ipshareCreated[subject]) {
             revert IPShareAlreadyCreated();
         }
         _ipshareCreated[subject] = true;
-        uint256 price = getPrice(minHoldShares, amount);
+        uint256 price = getPrice(minHoldShares, 0);
         if (msg.value < price + createFee) {
             revert InsufficientPay();
         }
@@ -235,7 +233,7 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
             revert PayCreateFeeFail();
         }
 
-        uint256 updatedAmount = amount + minHoldShares;
+        uint256 updatedAmount = minHoldShares;
         // the owner can get 10 share free
         _ipshareSupply[subject] = updatedAmount;
         // stake all the initial amount
@@ -249,7 +247,7 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         emit Stake(subject, subject, true, 0, updatedAmount);
 
         // create ipshare wont cost fees
-        emit CreateIPshare(subject, amount + minHoldShares, createFee);
+        emit CreateIPshare(subject, minHoldShares, createFee);
     }
 
     // ================================buy and sell=================================

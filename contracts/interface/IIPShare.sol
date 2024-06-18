@@ -3,7 +3,7 @@ pragma solidity 0.8.20;
 
 interface IIPShare {
     function valueCapture(address subject) external payable;
-    function createShare(address subject, uint256 amount) external payable;
+    function createShare(address subject) external payable;
     function ipshareCreated(address subject) external returns (bool);
     function ipshareBalance(address subject, address holder) external view returns (uint256);
     function ipshareSupply(address subject) external view returns (uint256);

@@ -99,7 +99,7 @@ contract Pump is Ownable, Nonces, IPump {
         
         if (!IIPShare(ipshare).ipshareCreated(creator)) {
             // create ipshare
-            IIPShare(ipshare).createShare(creator, 0);
+            IIPShare(ipshare).createShare(creator);
         }
 
         // cost fee
@@ -129,7 +129,7 @@ contract Pump is Ownable, Nonces, IPump {
         createdTokens[instance] = true;
         totalTokens += 1;
         emit NewToken(tick, instance, creator);
-        console.log(instance);
+        // console.log(instance);
         return instance;
     }
 }

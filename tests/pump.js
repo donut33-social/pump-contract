@@ -129,12 +129,7 @@ describe("Pump", function () {
 
             const feeInfo = await getBuyFeeData(buyFund)
             const buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
-            // address indexed buyer,
-            // bool isBuy,
-            // uint256 tokenAmount,
-            // uint256 ethAmount,
-            // uint256 tiptagFee,
-            // uint256 sellsmanFee
+
             await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
                 value: buyFund
             })).to.emit(token, 'Trade')
@@ -150,16 +145,57 @@ describe("Pump", function () {
         })
 
         it("Cannt trade with other users", async () => {
-            console.log(2, token.target)
+            await token.connect(bob).buyToken(parseAmount(1000), ethers.ZeroAddress, 0, {
+                value: parseAmount(0.1)
+            })
+            await expect(token.connect(bob).transfer(alice, parseAmount(100)))
+                .to.revertedWithCustomError(token, 'TokenNotListed');
+        })
+
+        it("Can transfer back to token self", async () => {
+            await token.connect(bob).buyToken(parseAmount(1000), ethers.ZeroAddress, 0, {
+                value: parseAmount(0.1)
+            })
+            await expect(token.connect(bob).transfer(token.target, parseAmount(100)))
+                .to.changeTokenBalance(token, bob, parseAmount(-100))
+        })
+
+        it("will revert if out of slippage", async () => {
+            const buyFund = parseAmount(0.1)
+
+            const feeInfo = await getBuyFeeData(buyFund)
+            let buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
+
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 300, {
+                value: buyFund + parseAmount(0.000001)
+            })).to.emit(token, 'Trade')
+
+            const sellAmount = parseAmount(100)
+            const sellFeeInfo = await getSellFeeData(sellAmount)
+            await expect(token.connect(alice).sellToken(sellAmount, 0, ethers.ZeroAddress, 0))
+                .to.emit(token, 'Trade')
+                .withArgs(alice, false, sellAmount, sellFeeInfo.sellFund, sellFeeInfo.tipTapFee, sellFeeInfo.ipshareFee)
+
+            buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
+            // lower slippage will fail
+            await expect(token.connect(alice).buyToken(buyAmount * 110n / 100n, ethers.ZeroAddress, 900, {
+                value: buyFund
+            })).to.revertedWithCustomError(token, 'OutOfSlippage')
+            // enough slippage will ok
+            await expect(token.connect(alice).buyToken(buyAmount * 110n / 100n, ethers.ZeroAddress, 1100, {
+                value: buyFund
+            })).to.emit(token, 'Trade')
         })
 
         it("Can claim social reward", async () => {
             const timestamp = Date.now()
             expect(await token.startTime()).eq(parseInt((timestamp - timestamp % 86400000) / 1000));
+
+
         })
     })
 
-    describe('Token after list', function () {
+    describe('Token list', function () {
 
     })
 })

@@ -29,7 +29,7 @@ async function deployPumpFactory() {
     let initCode = await uniswapV2Factory.pairCodeHash();
     // need set this code to pairFor(function) of UniswapV2Library
     initCode = initCode.replace('0x', '');
-    console.log('init code:', initCode);
+    // console.log('init code:', initCode);
 
     // deploy router
     let routerFactory = await ethers.getContractFactory("UniswapV2Router02");
@@ -71,7 +71,6 @@ async function deployIPShare() {
     const ipshareFactory = await ethers.getContractFactory('IPShare');
     const ipshare = await ipshareFactory.deploy();
     await ipshare.adminSetDonutFeeDestination(donutFeeDestination);
-    console.log('ipsharef, ', ipshare.target);
     return {
         // contracts
         ipshare,

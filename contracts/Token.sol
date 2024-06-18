@@ -158,7 +158,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     function buyToken(
         uint256 expectAmount,
         address sellsman,
-        uint8 slippage
+        uint16 slippage
     ) public payable nonReentrant returns (uint256) {
         sellsman = _checkBondingCurveState(sellsman);
 
@@ -223,7 +223,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         }
     }
 
-    function sellToken(uint256 amount, uint256 expectReceive, address sellsman, uint8 slippage) public nonReentrant {
+    function sellToken(uint256 amount, uint256 expectReceive, address sellsman, uint16 slippage) public nonReentrant {
         sellsman = _checkBondingCurveState(sellsman);
 
         uint256 sellAmount = amount;

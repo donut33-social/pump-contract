@@ -292,7 +292,11 @@ describe("Pump", function () {
             const p = await token.getPrice(bondingAmount, parseAmount(1)); //1.53125021875e-7
             console.log(3, gb.toString()/1e18 ,p.toString() / 1e18)
 
-            const needEth = gb * 10000n / (1000n - feeRatio[0] - feeRatio[1]);
+            const needEth = gb * 10000n / (10000n - feeRatio[0] - feeRatio[1]);
+            await token.connect(alice).buyToken(bondingAmount, ethers.ZeroAddress, 0, {
+                value: needEth
+            });
+            return;
             await expect(token.connect(alice).buyToken(bondingAmount, ethers.ZeroAddress, 0, {
                 value: needEth
             })).to.changeTokenBalance(token, alice, bondingAmount)

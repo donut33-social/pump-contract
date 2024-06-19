@@ -18,6 +18,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     uint256 private constant divisor = 10000;
 
     // distribute token total amount
+    // 0.3572916666666667 - 1.53125021875e-7
     uint256 private constant socialDistributionAmount = 1000000 ether;
     uint256 private constant bondingCurveTotalAmount = 7000000 ether;
     uint256 private constant liquidityAmount = 2000000 ether;
@@ -38,7 +39,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     // bonding curve
     uint256 public bondingCurveSupply;
-    uint256 private constant priceParam = 640000000;
+    uint256 private constant priceParam = 320000000000000000000;
 
     // state
     address private manager;
@@ -55,7 +56,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     // address private constant uniswapV3Facotry = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
     address private constant BlackHole = 0x000000000000000000000000000000000000dEaD;
     // uint160 private constant sqrtPrice = 343;
-    uint256 private constant ethAmountToDex = 1 ether;
+    uint256 private constant ethAmountToDex = 0.357291 ether;
 
     function initialize(address manager_, address ipshareSubject_, string memory tick) public override {
         if (initialized) {
@@ -67,6 +68,13 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         _name = tick;
         _symbol = tick;
         startTime = block.timestamp - (block.timestamp % secondPerDay);
+
+        // TODO - need reset the distribution
+        distributionEras.push(Distribution({
+            amount: 1 ether,
+            startTime: startTime,
+            stopTime: startTime + 30 * 86400
+        }));
         _mint(address(this), socialDistributionAmount + bondingCurveTotalAmount + liquidityAmount);
     }
 
@@ -118,7 +126,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         }
     }
 
-    function userClaim(uint256 orderId, uint256 amount, address user, bytes calldata signature) public {
+    function userClaim(address token, uint256 orderId, uint256 amount, bytes calldata signature) public {
         if (!listed) {
             revert TokenNotListed();
         }
@@ -128,12 +136,11 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         if (signature.length != 65) {
             revert InvalidSignature();
         }
-
-        if (msg.sender != user) {
-            revert InvalidClaimer();
+        if (token != address(this)) {
+            revert InvalidSignature();
         }
 
-        bytes32 data = keccak256(abi.encodePacked(orderId, msg.sender, amount));
+        bytes32 data = keccak256(abi.encodePacked(token, orderId, msg.sender, amount));
         if (!_check(data, signature)) {
             revert InvalidSignature();
         }
@@ -201,7 +208,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             if (!success1) {
                 revert CostFeeFail();
             }
-            IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(ipshareSubject);
+            IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
             this.transfer(msg.sender, actualAmount);
             bondingCurveSupply += actualAmount;
 
@@ -215,7 +222,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             if (!success) {
                 revert CostFeeFail();
             }
-            IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(ipshareSubject);
+            IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
             this.transfer(msg.sender, tokenReceived);
             bondingCurveSupply += tokenReceived;
             emit Trade(msg.sender, true, tokenReceived, msg.value, tiptagFee, sellsmanFee);
@@ -260,7 +267,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             }
         }
 
-        IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(ipshareSubject);
+        IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
         bondingCurveSupply -= sellAmount;
 
         emit Trade(msg.sender, false, sellAmount, price, tiptagFee, sellsmanFee);

@@ -30,8 +30,11 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         uint256 stopTime;
     }
     Distribution[] private distributionEras;
+    // last claim to social pool time
     uint256 public lastClaimTime;
+    // pending reward in social pool to claim
     uint256 public pendingClaimSocialRewards;
+    // total claimed reward from social pool
     uint256 public totalClaimedSocialRewards;
 
     uint256 public startTime;
@@ -39,7 +42,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     // bonding curve
     uint256 public bondingCurveSupply;
-    uint256 private constant priceParam = 320000000000000000000;
+    uint256 private constant priceParam = 320 ether;
 
     // state
     address private manager;
@@ -67,8 +70,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         ipshareSubject = ipshareSubject_;
         _name = tick;
         _symbol = tick;
+        // before dawn of today
         startTime = block.timestamp - (block.timestamp % secondPerDay);
-
+        lastClaimTime = startTime - 1;
         // TODO - need reset the distribution
         distributionEras.push(Distribution({
             amount: 1 ether,
@@ -156,7 +160,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         pendingClaimSocialRewards -= amount;
         totalClaimedSocialRewards += amount;
 
-        transfer(msg.sender, amount);
+        claimedOrder[orderId] = true;
+
+        this.transfer(msg.sender, amount);
 
         emit UserClaimReward(orderId, msg.sender, amount);
     }
@@ -174,7 +180,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         uint256 tiptagFee = (msg.value * feeRatio[0]) / divisor;
         uint256 sellsmanFee = (msg.value * feeRatio[1]) / divisor;
 
-        uint256 tokenReceived = getBuyAmountByValue(buyFunds - tiptagFee - sellsmanFee);
+        uint256 tokenReceived = _getBuyAmountByValue(buyFunds - tiptagFee - sellsmanFee);
         if (
             slippage > 0 &&
             (tokenReceived > (expectAmount * (divisor + slippage)) / divisor ||
@@ -185,7 +191,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
         address tiptapFeeAddress = IPump(manager).getFeeReceiver();
 
-        if (tokenReceived + bondingCurveSupply > bondingCurveTotalAmount) {
+        if (tokenReceived + bondingCurveSupply >= bondingCurveTotalAmount) {
             uint256 actualAmount = bondingCurveTotalAmount - bondingCurveSupply;
             // calculate used eth
             uint256 usedEth = getBuyPriceAfterFee(actualAmount);
@@ -304,7 +310,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     function getBuyPriceAfterFee(uint256 amount) public view returns (uint256) {
         uint256 price = getBuyPrice(amount);
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
-        return (price * (divisor + feeRatio[0] + feeRatio[1])) / divisor;
+        return (price * divisor / (divisor - feeRatio[0] - feeRatio[1]));
     }
 
     function getSellPriceAfterFee(uint256 amount) public view returns (uint256) {
@@ -313,8 +319,20 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         return (price * (divisor - feeRatio[0] - feeRatio[1])) / divisor;
     }
 
-    function getBuyAmountByValue(uint256 ethAmount) public view returns (uint256) {
+    function _getBuyAmountByValue(uint256 ethAmount) private view returns (uint256) {
         return floorCbrt(ethAmount * priceParam * 3e36 + bondingCurveSupply ** 3) - bondingCurveSupply;
+    }
+
+    function getBuyAmountByValue(uint256 ethAmount) public view returns (uint256) {
+        uint256 amount = _getBuyAmountByValue(ethAmount);
+        if (amount + bondingCurveSupply > bondingCurveTotalAmount) {
+            return bondingCurveTotalAmount - bondingCurveSupply;
+        }
+        return amount;
+    }
+
+    function getETHAmountToDex() public view returns (uint256) {
+        return getBuyPriceAfterFee(bondingCurveTotalAmount - bondingCurveSupply);
     }
 
     function floorCbrt(uint256 n) internal pure returns (uint256) {

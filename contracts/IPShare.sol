@@ -247,7 +247,7 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         // create ipshare wont cost fees
         emit CreateIPshare(subject, minHoldShares, createFee);
 
-        emit Stake(subject, subject, true, 0, updatedAmount);
+        emit Stake(subject, subject, true, updatedAmount, updatedAmount);
     }
 
     // ================================buy and sell=================================

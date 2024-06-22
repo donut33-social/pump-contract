@@ -26,6 +26,7 @@ interface IToken {
         uint256 tiptagFee,
         uint256 sellsmanFee
     );
+    event TokenListedToDex(address indexed pair);
 
     function initialize(
         address manager_,

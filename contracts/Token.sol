@@ -359,7 +359,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         IUniswapV2Factory factory = IUniswapV2Factory(uniswapV2Factory);
         IUniswapV2Router02 router = IUniswapV2Router02(uniswapV2Router02);
 
-        factory.createPair(address(this), router.WETH());
+        address pair = factory.createPair(address(this), router.WETH());
 
         // add liquidity
         router.addLiquidityETH{value: ethAmountToDex}(
@@ -370,6 +370,8 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             BlackHole,
             block.timestamp
         );
+
+        emit TokenListedToDex(pair);
 
         // v3
         // create pool

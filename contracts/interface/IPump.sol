@@ -22,6 +22,7 @@ interface IPump {
     function getIPShare() external view returns (address);
     function getFeeReceiver() external view returns (address);
     function getFeeRatio() external view returns (uint256[2] memory);
+    function getClaimFee() external view returns (uint256);
     function createToken(string calldata tick) external payable returns (address);
     function getClaimSigner() external view returns (address);
 }

@@ -252,7 +252,9 @@ describe("Pump", function () {
             const claimAmount = parseAmount(100);
             const orderId = 23059723523125626n;
             const signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
-            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature))
+            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.01)
+            }))
                 .to.revertedWithCustomError(token, 'TokenNotListed')
         })
 
@@ -320,7 +322,24 @@ describe("Pump", function () {
             needEth = await token.getBuyPriceAfterFee(buyAmount)
             await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
                 value: needEth
-            })).to.changeTokenBalance(token, alice, parseAmount(7000000) - balanceOfBob);
+            })).to.changeTokenBalance(token, alice, parseAmount(7000000) - balanceOfBob)
+        })
+
+        it('will emit list event with the last buy', async () => {
+            let buyAmount = parseAmount(6000000)
+            let needEth = await token.getBuyPriceAfterFee(buyAmount)
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+                value: needEth
+            })
+
+            const balanceOfBob = await token.balanceOf(bob)
+            // console.log('balance of bob', balanceOfBob)
+
+            buyAmount = parseAmount(1000000)
+            needEth = await token.getBuyPriceAfterFee(buyAmount)
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+                value: needEth
+            })).to.emit(token, 'TokenListedToDex');
         })
 
     })
@@ -365,29 +384,54 @@ describe("Pump", function () {
             let claimAmount = parseAmount(100);
             let orderId = 23059723523125626n;
             let signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
-            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature))
+            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.0003)
+            }))
                 .to.emit(token, 'UserClaimReward')
                 .withArgs(orderId, alice, claimAmount);
 
             orderId = 23852135483n;
             signature = await getClaimSignature(token.target, orderId, claimAmount, bob.address)
-            await expect(token.connect(bob).userClaim(token, orderId, claimAmount, signature))
-                .to.changeTokenBalances(token, [bob, token], [claimAmount, -claimAmount])
+            await expect(token.connect(bob).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.0005)
+            })).to.changeTokenBalances(token, [bob, token], [claimAmount, -claimAmount])
         })
 
         it('Will revert if the signature is valid', async () => {
             const claimAmount = parseAmount(100);
             const orderId = 23059723523125626n;
             const signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
-            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature.replace('3', '5')))
+            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature.replace('3', '5'), {
+                value: parseAmount(0.222)
+            }))
                 .to.revertedWithCustomError(token, 'InvalidSignature')
+        })
+
+        it('will revert if insufficient claim fee', async () => {
+            const claimAmount = parseAmount(100);
+            const orderId = 23059723523125626n;
+            const signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
+            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: 100000000n
+            })).to.revertedWithCustomError(token, 'CostFeeFail')
+        })
+
+        it('will refund the left fee back to user', async () => {
+            const claimAmount = parseAmount(100);
+            const orderId = 23059723523125626n;
+            const signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
+            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.1)
+            })).to.changeEtherBalance(alice, parseAmount(-0.000005))
         })
 
         it('will revert if the claim amount is greater than social pool', async () => {
             const claimAmount = parseAmount(10000000);
             const orderId = 23059723523125626n;
             const signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
-            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature))
+            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.002)
+            }))
                 .to.revertedWithCustomError(token, 'InvalidClaimAmount')
         })
 
@@ -395,16 +439,22 @@ describe("Pump", function () {
             let claimAmount = parseAmount(100);
             let orderId = 23059723523125626n;
             let signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
-            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature))
+            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.0003)
+            }))
                 .to.emit(token, 'UserClaimReward')
                 .withArgs(orderId, alice, claimAmount);
 
-            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature))
+            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.0003)
+            }))
                 .to.revertedWithCustomError(token, 'ClaimOrderExist')
 
             claimAmount = parseAmount(1000);
             signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
-            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature))
+            await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.0003)
+            }))
                 .to.revertedWithCustomError(token, 'ClaimOrderExist')
         })
 
@@ -412,7 +462,9 @@ describe("Pump", function () {
             let claimAmount = parseAmount(100);
             let orderId = 23059723523125626n;
             let signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
-            await expect(token.connect(bob).userClaim(token, orderId, claimAmount, signature))
+            await expect(token.connect(bob).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.0003)
+            }))
                 .to.revertedWithCustomError(token, 'InvalidSignature')
         })
 

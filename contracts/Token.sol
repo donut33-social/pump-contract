@@ -130,7 +130,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         }
     }
 
-    function userClaim(address token, uint256 orderId, uint256 amount, bytes calldata signature) public {
+    function userClaim(address token, uint256 orderId, uint256 amount, bytes calldata signature) public payable {
         if (!listed) {
             revert TokenNotListed();
         }
@@ -142,6 +142,22 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         }
         if (token != address(this)) {
             revert InvalidSignature();
+        }
+
+        uint256 claimFee = IPump(manager).getClaimFee();
+        if (msg.value < claimFee) {
+            revert CostFeeFail();
+        }else if (msg.value > claimFee) {
+            (bool success, ) = msg.sender.call{value: msg.value - claimFee}("");
+            if (!success) {
+                revert RefundFail();
+            }
+        }else {
+            address receiver = IPump(manager).getFeeReceiver();
+            (bool success, ) = receiver.call{value: claimFee}("");
+            if (!success) {
+                revert CostFeeFail();
+            }
         }
 
         bytes32 data = keccak256(abi.encodePacked(token, orderId, msg.sender, amount));

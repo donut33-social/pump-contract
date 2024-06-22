@@ -13,6 +13,7 @@ contract Pump is Ownable, Nonces, IPump {
     address public immutable tokenImplementation;
     address private ipshare;
     uint256 public createFee = 0.00005 ether;
+    uint256 private claimFee = 0.000005 ether;
     address private feeReceiver;
     address private claimSigner;
     uint256[2] private feeRatio;  // 0: to tiptag; 1: to salesman
@@ -82,6 +83,9 @@ contract Pump is Ownable, Nonces, IPump {
 
     function getFeeRatio() public override view returns (uint256[2] memory) {
         return feeRatio;
+    }
+    function getClaimFee() public override view returns (uint256) {
+        return claimFee;
     }
 
     function getClaimSigner() public override view returns (address) {

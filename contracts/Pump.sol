@@ -124,6 +124,8 @@ contract Pump is Ownable, Nonces, IPump {
         }
 
         address instance = Clones.cloneDeterministic(tokenImplementation, salt);
+        emit NewToken(tick, instance, creator);
+        
         Token(instance).initialize(
             address(this),
             creator,
@@ -132,7 +134,6 @@ contract Pump is Ownable, Nonces, IPump {
 
         createdTokens[instance] = true;
         totalTokens += 1;
-        emit NewToken(tick, instance, creator);
         // console.log(instance);
         return instance;
     }

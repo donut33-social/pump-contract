@@ -5,8 +5,6 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interface/IIPShare.sol";
-import "hardhat/console.sol";
-
 
 // Events
 contract IPShareevents {

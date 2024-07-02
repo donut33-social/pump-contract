@@ -67,9 +67,9 @@ module.exports = {
     deployer: 0,
     tokenOwner: 1
   },
-  network: {
+  networks: {
     hardhat: {
-      chainId: 1337
+      chainId: 97
     },
     bitlayer: {
       url: 'https://rpc.bitlayer.org',
@@ -78,6 +78,13 @@ module.exports = {
         process.env.KEY
       ]
     },
+    chapel: {
+      url: process.env.CHAPEL,
+      chainId: 97,
+      accounts: [
+        process.env.KEY
+      ]
+    }
   },
   etherscan: {
     apiKey: ''

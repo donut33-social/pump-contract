@@ -9,7 +9,6 @@ import "./interface/IIPShare.sol";
 import "./interface/IPump.sol";
 import "./interface/IUniswapV2Router02.sol";
 import "./interface/IUniswapV2Factory.sol";
-import "hardhat/console.sol";
 
 contract Token is IToken, ERC20, ReentrancyGuard {
     string private _name;

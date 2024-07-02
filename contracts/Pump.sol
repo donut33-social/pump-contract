@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/utils/Nonces.sol";
 import "./interface/IPump.sol";
 import "./Token.sol";
 import "./interface/IIPShare.sol";
-import "hardhat/console.sol";
 
 contract Pump is Ownable, Nonces, IPump {
     address public immutable tokenImplementation;
@@ -30,13 +29,13 @@ contract Pump is Ownable, Nonces, IPump {
         feeReceiver = _feeReceiver;
         feeRatio = [100, 100];
         claimSigner = msg.sender;
+        emit NewToken(tick, tokenImplementation, msg.sender);
         Token(tokenImplementation).initialize(
             _ipshare,
             msg.sender,
             tick
         );
         createdTicks[tick] = true;
-        emit NewToken(tick, tokenImplementation, msg.sender);
     }
 
     receive() external payable {}

@@ -11,7 +11,7 @@ interface IPump {
     error RefundFail();
 
     // events
-    event NewToken(string indexed tick, address indexed token, address indexed creator);
+    event NewToken(string tick, address indexed token, address indexed creator);
     event SocialDistributionContractChanged(address indexed oldContract, address indexed newContract);
     event IPShareChanged(address indexed oldIPShare, address indexed newIPShare);
     event CreateFeeChanged(uint256 indexed oldFee, uint256 indexed newFee);

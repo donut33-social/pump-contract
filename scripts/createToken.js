@@ -1,6 +1,6 @@
 const { ethers } = require('hardhat')
 
-const PumpContract = '0xFe992EF5f73Ac289052F1742B918278a62686fD1'
+const PumpContract = '0xF21649D901A082772Bd7B5d5eD5039C7a43A5789'
 
 async function main() {
     const [signer] = await ethers.getSigners();

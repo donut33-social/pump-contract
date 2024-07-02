@@ -1,6 +1,6 @@
 const { ethers } = require('hardhat')
 
-const IPShareContract = '0x183434ba0726b244521cB1C46AE5C90538146db8'
+const IPShareContract = '0xf6DDd65295Ca7A672C34043aa62f32C01FBfb29D'
 
 async function main() {
     const [signer] = await ethers.getSigners();

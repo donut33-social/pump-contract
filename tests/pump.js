@@ -62,8 +62,8 @@ describe("Pump", function () {
         })
 
         it("Everyone can create more than one token", async () => {
-            let token1 = await pump.connect(alice).createToken('T1', { value: parseAmount(0.01)}); // 0x8abe34a3bc8eb3b8d486ebf0c216d9bb7e4c5eab
-            let token2 = await pump.connect(alice).createToken('T2', { value: parseAmount(0.01)}); // 0x74831469a345d15e1279a03d385d547b171a4e37
+            let token1 = await pump.connect(alice).createToken('T1', { value: parseAmount(0.00005)}); // 0x8abe34a3bc8eb3b8d486ebf0c216d9bb7e4c5eab
+            let token2 = await pump.connect(alice).createToken('T2', { value: parseAmount(0.00005)}); // 0x74831469a345d15e1279a03d385d547b171a4e37
 
             token1 = await ethers.getContractAt('Token', '0x8abe34a3bc8eb3b8d486ebf0c216d9bb7e4c5eab');
             token2 = await ethers.getContractAt('Token', '0x74831469a345d15e1279a03d385d547b171a4e37')
@@ -87,7 +87,7 @@ describe("Pump", function () {
     describe('Token before list', function () {
         let token;
         beforeEach(async () => {
-            token = await pump.createToken('T1', { value: parseAmount(0.01) })
+            token = await pump.createToken('T1', { value: parseAmount(0.00005) })
             token = await ethers.getContractAt('Token', '0xea8f1a548075307ba5287a29fb2465ac634ed92e')
             await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
             // console.log(1, weth.target, uniswapV2Factory.target, uniswapV2Router02.target)
@@ -121,19 +121,47 @@ describe("Pump", function () {
             }
         }
 
+        it("Can buy token when create token", async () => {
+            let imp = await pump.tokenImplementation();
+            imp = await ethers.getContractAt('Token', imp)
+            const buyFund = parseAmount(0.1)
+
+            const feeInfo = await getBuyFeeData(buyFund)
+            const buyAmount = await imp.getBuyAmountByValue(feeInfo.buyFund)
+
+            await pump.createToken('T2', { value: parseAmount(0.10005) })
+            let token = await ethers.getContractAt('Token', '0xcd7a1ce5c281146e32d9f1c652dcda21e1eef7e4')
+            expect(await token.balanceOf(owner)).eq(buyAmount)
+        })
+
         it("Can trade with bonding curve", async () => {
             const buyFund = parseAmount(0.1)
 
             const feeInfo = await getBuyFeeData(buyFund)
             const buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
 
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
                 value: buyFund
             })).to.changeTokenBalance(token, alice, buyAmount)
             
             await expect(token.connect(alice).sellToken(parseAmount(100), 0, ethers.ZeroAddress, 0))
                 .to.changeTokenBalance(token, alice, parseAmount(-100))
-            // console.log(44, await token.balanceOf(alice))
+        })
+
+        it('Can buy token for otherone', async () => {
+            const buyFund = parseAmount(0.1)
+
+            const feeInfo = await getBuyFeeData(buyFund)
+            const buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
+
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
+                value: buyFund
+            })).to.changeTokenBalance(token, bob, buyAmount)
+
+            expect(await token.balanceOf(alice)).eq(0);
+            
+            await expect(token.connect(bob).sellToken(parseAmount(100), 0, ethers.ZeroAddress, 0))
+                .to.changeTokenBalance(token, bob, parseAmount(-100))
         })
 
         it("Check event", async () => {
@@ -142,7 +170,7 @@ describe("Pump", function () {
             const feeInfo = await getBuyFeeData(buyFund)
             const buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
 
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
                 value: buyFund
             })).to.emit(token, 'Trade')
             .withArgs(alice, true, buyAmount, buyFund, feeInfo.tipTapFee, feeInfo.ipshareFee)
@@ -157,7 +185,7 @@ describe("Pump", function () {
         })
 
         it("Cannt trade with other users", async () => {
-            await token.connect(bob).buyToken(parseAmount(1000), ethers.ZeroAddress, 0, {
+            await token.connect(bob).buyToken(parseAmount(1000), ethers.ZeroAddress, 0, bob, {
                 value: parseAmount(0.1)
             })
             await expect(token.connect(bob).transfer(alice, parseAmount(100)))
@@ -165,7 +193,7 @@ describe("Pump", function () {
         })
 
         it("Can transfer back to token self", async () => {
-            await token.connect(bob).buyToken(parseAmount(1000), ethers.ZeroAddress, 0, {
+            await token.connect(bob).buyToken(parseAmount(1000), ethers.ZeroAddress, 0, bob, {
                 value: parseAmount(0.1)
             })
             await expect(token.connect(bob).transfer(token.target, parseAmount(100)))
@@ -179,7 +207,7 @@ describe("Pump", function () {
             let buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
 
             // 0 slippage means not consider slippage
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
                 value: buyFund
             })).to.emit(token, 'Trade')
 
@@ -191,11 +219,11 @@ describe("Pump", function () {
 
             buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
             // lower slippage will fail
-            await expect(token.connect(alice).buyToken(buyAmount * 110n / 100n, ethers.ZeroAddress, 900, {
+            await expect(token.connect(alice).buyToken(buyAmount * 110n / 100n, ethers.ZeroAddress, 900, alice, {
                 value: buyFund
             })).to.revertedWithCustomError(token, 'OutOfSlippage')
             // enough slippage will ok
-            await expect(token.connect(alice).buyToken(buyAmount * 110n / 100n, ethers.ZeroAddress, 1100, {
+            await expect(token.connect(alice).buyToken(buyAmount * 110n / 100n, ethers.ZeroAddress, 1100, alice, {
                 value: buyFund
             })).to.emit(token, 'Trade')
         })
@@ -206,11 +234,11 @@ describe("Pump", function () {
             const feeInfo = await getBuyFeeData(buyFund)
             let buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
 
-            await expect(token.connect(alice).buyToken(buyAmount, bob, 0, {
+            await expect(token.connect(alice).buyToken(buyAmount, bob, 0, alice, {
                 value: buyFund
             })).to.revertedWithCustomError(token, 'IPShareNotCreated')
 
-            await token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+            await token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
                 value: buyFund
             })
             await expect(token.connect(alice).sellToken(parseAmount(10), 0, bob, 0))
@@ -229,7 +257,7 @@ describe("Pump", function () {
             const donutFeePercent = await ipshare.donutFeePercent();
             const divisor = 10000n;
 
-            await expect(token.connect(alice).buyToken(buyAmount, bob, 0, {
+            await expect(token.connect(alice).buyToken(buyAmount, bob, 0, alice, {
                 value: buyFund
             })).to.changeEtherBalances([
                 alice,
@@ -281,7 +309,7 @@ describe("Pump", function () {
         let token;
         let feeRatio;
         beforeEach(async () => {
-            token = await pump.createToken('T1', { value: parseAmount(0.01) })
+            token = await pump.createToken('T1', { value: parseAmount(0.00005) })
             token = await ethers.getContractAt('Token', '0xea8f1a548075307ba5287a29fb2465ac634ed92e')
             await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
             feeRatio = await getFeeRatio();
@@ -296,7 +324,7 @@ describe("Pump", function () {
 
             const needEth = gb;
             const ethBalanceBefore = await getEthBalance(alice);
-            await expect(token.connect(alice).buyToken(bondingAmount, ethers.ZeroAddress, 0, {
+            await expect(token.connect(alice).buyToken(bondingAmount, ethers.ZeroAddress, 0, alice, {
                 value: needEth + 1000000n
             })).to.changeTokenBalances(token, [
                 alice, token
@@ -311,7 +339,7 @@ describe("Pump", function () {
         it("The last buyer will make the liquidity pool too", async () => {
             let buyAmount = parseAmount(6000000)
             let needEth = await token.getBuyPriceAfterFee(buyAmount)
-            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
                 value: needEth
             })
 
@@ -320,7 +348,7 @@ describe("Pump", function () {
 
             buyAmount = parseAmount(1000000)
             needEth = await token.getBuyPriceAfterFee(buyAmount)
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
                 value: needEth
             })).to.changeTokenBalance(token, alice, parseAmount(7000000) - balanceOfBob)
         })
@@ -328,7 +356,7 @@ describe("Pump", function () {
         it('will emit list event with the last buy', async () => {
             let buyAmount = parseAmount(6000000)
             let needEth = await token.getBuyPriceAfterFee(buyAmount)
-            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
                 value: needEth
             })
 
@@ -337,7 +365,7 @@ describe("Pump", function () {
 
             buyAmount = parseAmount(1000000)
             needEth = await token.getBuyPriceAfterFee(buyAmount)
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
                 value: needEth
             })).to.emit(token, 'TokenListedToDex');
         })
@@ -348,13 +376,13 @@ describe("Pump", function () {
         let token;
         let feeRatio;
         beforeEach(async () => {
-            token = await pump.createToken('T1', { value: parseAmount(0.01) })
+            token = await pump.createToken('T1', { value: parseAmount(0.00005) })
             token = await ethers.getContractAt('Token', '0xea8f1a548075307ba5287a29fb2465ac634ed92e')
             await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
             feeRatio = await getFeeRatio();
             let buyAmount = parseAmount(7100000)
             let needEth = await token.getBuyPriceAfterFee(buyAmount)
-            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
                 value: needEth
             })
         })
@@ -469,7 +497,7 @@ describe("Pump", function () {
         })
 
         it('Cannt trade with bonding curve', async () => {
-            await expect(token.connect(alice).buyToken(parseAmount(1000), ethers.ZeroAddress, 0, {
+            await expect(token.connect(alice).buyToken(parseAmount(1000), ethers.ZeroAddress, 0, alice, {
                 value: parseAmount(0.01)
             })).to.revertedWithCustomError(token, 'TokenListed')
 

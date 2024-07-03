@@ -109,13 +109,17 @@ contract Pump is Ownable, Nonces, IPump {
         if (createFee != 0 && msg.value < createFee) {
             revert InsufficientCreateFee();
         }
-        if (msg.value > createFee) {
-            // refund asset
-           (bool success, ) = msg.sender.call{value: msg.value - createFee}("");
-            if (!success) {
-                revert RefundFail();
-            }
+        (bool success, ) = feeReceiver.call{value: createFee}("");
+        if (!success) {
+            revert InsufficientCreateFee();
         }
+        // if (msg.value > createFee) {
+        //     // refund asset
+        //    (bool success, ) = msg.sender.call{value: msg.value - createFee}("");
+        //     if (!success) {
+        //         revert RefundFail();
+        //     }
+        // }
 
         bytes32 salt;
         unchecked {
@@ -131,6 +135,21 @@ contract Pump is Ownable, Nonces, IPump {
             tick
         );
 
+        if (msg.value > createFee) {
+            (bool success1, ) = instance.call{
+                value: msg.value - createFee
+            }(abi.encodeWithSignature("buyToken(uint256,address,uint16,address)", 0, msg.sender, 0, msg.sender));
+            if (!success1) {
+                revert PreMineTokenFail();
+            }
+            uint256 leftValue = address(this).balance;
+            if (leftValue > 0) {
+                (bool success2, ) = msg.sender.call{value: leftValue}("");
+                if (!success2) {
+                    revert RefundFail();
+                }
+            }
+        }
         createdTokens[instance] = true;
         totalTokens += 1;
         // console.log(instance);

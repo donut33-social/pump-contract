@@ -81,11 +81,12 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         _mint(address(this), socialDistributionAmount + bondingCurveTotalAmount + liquidityAmount);
     }
 
-    function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
-        WETH = _WETH;
-        uniswapV2Factory = _uniswapV2Factory;
-        uniswapV2Router02 = _uniswapV2Router02;
-    }
+    // TODO - del this
+    // function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
+    //     WETH = _WETH;
+    //     uniswapV2Factory = _uniswapV2Factory;
+    //     uniswapV2Router02 = _uniswapV2Router02;
+    // }
 
     /********************************** social distribution ********************************/
     function calculateReward(uint256 from, uint256 to) public view returns (uint256 rewards) {
@@ -186,7 +187,8 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     function buyToken(
         uint256 expectAmount,
         address sellsman,
-        uint16 slippage
+        uint16 slippage,
+        address receiver
     ) public payable nonReentrant returns (uint256) {
         sellsman = _checkBondingCurveState(sellsman);
 
@@ -230,10 +232,10 @@ contract Token is IToken, ERC20, ReentrancyGuard {
                 revert CostFeeFail();
             }
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
-            this.transfer(msg.sender, actualAmount);
+            this.transfer(receiver, actualAmount);
             bondingCurveSupply += actualAmount;
 
-            emit Trade(msg.sender, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
+            emit Trade(receiver, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
             // build liquidity pool
             _makeLiquidityPool();
             listed = true;
@@ -244,9 +246,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
                 revert CostFeeFail();
             }
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
-            this.transfer(msg.sender, tokenReceived);
+            this.transfer(receiver, tokenReceived);
             bondingCurveSupply += tokenReceived;
-            emit Trade(msg.sender, true, tokenReceived, msg.value, tiptagFee, sellsmanFee);
+            emit Trade(receiver, true, tokenReceived, msg.value, tiptagFee, sellsmanFee);
             return tokenReceived;
         }
     }

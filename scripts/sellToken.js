@@ -1,6 +1,6 @@
 const { ethers } = require('hardhat')
 
-const TokenContract = '0xcc842ca5024492ea44d1ab4f61af0f0f4c5b33f1'
+const TokenContract = '0xAeDbdD8E25e5134Bd076DAD86b117B6F025479FB'
 
 async function main() {
     const token = await ethers.getContractAt('Token', TokenContract)

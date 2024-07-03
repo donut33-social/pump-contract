@@ -8,6 +8,7 @@ interface IPump {
     error CantSetSocialDistributionMoreThanTotalSupply();
     error TooMuchFee();
     error InsufficientCreateFee();
+    error PreMineTokenFail();
     error RefundFail();
 
     // events

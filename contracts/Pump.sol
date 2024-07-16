@@ -138,7 +138,7 @@ contract Pump is Ownable, Nonces, IPump {
         if (msg.value > createFee) {
             (bool success1, ) = instance.call{
                 value: msg.value - createFee
-            }(abi.encodeWithSignature("buyToken(uint256,address,uint16,address)", 0, msg.sender, 0, msg.sender));
+            }(abi.encodeWithSignature("buyToken(uint256,address,uint16,address)", 0, creator, 0, creator));
             if (!success1) {
                 revert PreMineTokenFail();
             }

@@ -82,11 +82,11 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     }
 
     // TODO - del this
-    // function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
-    //     WETH = _WETH;
-    //     uniswapV2Factory = _uniswapV2Factory;
-    //     uniswapV2Router02 = _uniswapV2Router02;
-    // }
+    function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
+        WETH = _WETH;
+        uniswapV2Factory = _uniswapV2Factory;
+        uniswapV2Router02 = _uniswapV2Router02;
+    }
 
     /********************************** social distribution ********************************/
     function calculateReward(uint256 from, uint256 to) public view returns (uint256 rewards) {
@@ -191,6 +191,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         address receiver
     ) public payable nonReentrant returns (uint256) {
         sellsman = _checkBondingCurveState(sellsman);
+        if (receiver == address(0)) {
+            receiver = msg.sender;
+        }
 
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
         uint256 buyFunds = msg.value;

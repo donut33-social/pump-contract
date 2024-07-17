@@ -135,7 +135,7 @@ describe("Pump", function () {
         })
 
         it("Can trade with bonding curve", async () => {
-            const buyFund = parseAmount(0.1)
+            const buyFund = parseAmount(0.2)
 
             const feeInfo = await getBuyFeeData(buyFund)
             const buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
@@ -144,8 +144,8 @@ describe("Pump", function () {
                 value: buyFund
             })).to.changeTokenBalance(token, alice, buyAmount)
             
-            await expect(token.connect(alice).sellToken(parseAmount(100), 0, ethers.ZeroAddress, 0))
-                .to.changeTokenBalance(token, alice, parseAmount(-100))
+            await expect(token.connect(alice).sellToken(parseAmount(2000000), 0, ethers.ZeroAddress, 0))
+                .to.changeTokenBalance(token, alice, parseAmount(-2000000))
         })
 
         it('Can buy token for otherone', async () => {

@@ -273,7 +273,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         uint256 receivedEth = price - tiptagFee - sellsmanFee;
 
         if (
-            expectReceive > 0 &&
+            expectReceive > 0 && slippage > 0 &&
             (receivedEth > ((divisor + slippage) * expectReceive) / divisor ||
                 receivedEth < ((divisor - slippage) * expectReceive) / divisor)
         ) {

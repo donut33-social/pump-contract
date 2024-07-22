@@ -74,19 +74,19 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         lastClaimTime = startTime - 1;
         // TODO - need reset the distribution
         distributionEras.push(Distribution({
-            amount: 1 ether,
+            amount: 20000 ether,
             startTime: startTime,
-            stopTime: startTime + 30 * 86400
+            stopTime: startTime + 100 * 86400
         }));
         _mint(address(this), socialDistributionAmount + bondingCurveTotalAmount + liquidityAmount);
     }
 
     // TODO - del this
-    function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
-        WETH = _WETH;
-        uniswapV2Factory = _uniswapV2Factory;
-        uniswapV2Router02 = _uniswapV2Router02;
-    }
+    // function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
+    //     WETH = _WETH;
+    //     uniswapV2Factory = _uniswapV2Factory;
+    //     uniswapV2Router02 = _uniswapV2Router02;
+    // }
 
     /********************************** social distribution ********************************/
     function calculateReward(uint256 from, uint256 to) public view returns (uint256 rewards) {

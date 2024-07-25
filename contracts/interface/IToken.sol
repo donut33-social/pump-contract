@@ -20,6 +20,7 @@ interface IToken {
     event UserClaimReward(uint256 indexed orderId, address indexed user, uint256 indexed amount);
     event Trade(
         address indexed buyer,
+        address indexed sellsman,
         bool isBuy,
         uint256 tokenAmount,
         uint256 ethAmount,

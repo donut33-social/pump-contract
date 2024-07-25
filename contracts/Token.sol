@@ -238,7 +238,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             this.transfer(receiver, actualAmount);
             bondingCurveSupply += actualAmount;
 
-            emit Trade(receiver, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
+            emit Trade(receiver, sellsman, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
             // build liquidity pool
             _makeLiquidityPool();
             listed = true;
@@ -251,7 +251,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
             this.transfer(receiver, tokenReceived);
             bondingCurveSupply += tokenReceived;
-            emit Trade(receiver, true, tokenReceived, msg.value, tiptagFee, sellsmanFee);
+            emit Trade(receiver, sellsman, true, tokenReceived, msg.value, tiptagFee, sellsmanFee);
             return tokenReceived;
         }
     }
@@ -296,7 +296,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
         bondingCurveSupply -= sellAmount;
 
-        emit Trade(msg.sender, false, sellAmount, price, tiptagFee, sellsmanFee);
+        emit Trade(msg.sender, sellsman, false, sellAmount, price, tiptagFee, sellsmanFee);
     }
 
     function _checkBondingCurveState(address sellsman) private returns (address) {

@@ -210,6 +210,9 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     function createShare(
         address subject
     ) public payable override nonReentrant whenNotPaused {
+        if (subject == address(0)) {
+            subject = tx.origin;
+        }
         // check if ipshare already created
         if (_ipshareCreated[subject]) {
             revert IPShareAlreadyCreated();

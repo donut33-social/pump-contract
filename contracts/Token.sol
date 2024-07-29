@@ -9,6 +9,7 @@ import "./interface/IIPShare.sol";
 import "./interface/IPump.sol";
 import "./interface/IUniswapV2Router02.sol";
 import "./interface/IUniswapV2Factory.sol";
+// import "hardhat/console.sol";
 
 contract Token is IToken, ERC20, ReentrancyGuard {
     string private _name;
@@ -19,7 +20,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     // distribute token total amount
     // 0.3572916666666667 - 1.53125021875e-7
     uint256 private constant socialDistributionAmount = 1000000 ether;
-    uint256 private constant bondingCurveTotalAmount = 7000000 ether;
+    uint256 private constant bondingCurveTotalAmount = 70000 ether;
     uint256 private constant liquidityAmount = 2000000 ether;
 
     // social distribution
@@ -50,9 +51,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     bool initialized = false;
 
     // dex
-    address private WETH = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address private uniswapV2Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address private uniswapV2Router02 = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address private WETH = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;
+    address private uniswapV2Factory = 0x6725F303b657a9451d8BA641348b6761A6CC7a17;
+    address private uniswapV2Router02 = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
 
     // address private constant positionManager = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
     // address private constant uniswapV3Facotry = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
@@ -73,20 +74,18 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         startTime = block.timestamp - (block.timestamp % secondPerDay);
         lastClaimTime = startTime - 1;
         // TODO - need reset the distribution
-        distributionEras.push(Distribution({
-            amount: 20000 ether,
-            startTime: startTime,
-            stopTime: startTime + 100 * 86400
-        }));
+        distributionEras.push(
+            Distribution({amount: 231481481481481481, startTime: startTime, stopTime: startTime + 100 * 86400})
+        );
         _mint(address(this), socialDistributionAmount + bondingCurveTotalAmount + liquidityAmount);
     }
 
     // TODO - del this
-    // function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
-    //     WETH = _WETH;
-    //     uniswapV2Factory = _uniswapV2Factory;
-    //     uniswapV2Router02 = _uniswapV2Router02;
-    // }
+    function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
+        WETH = _WETH;
+        uniswapV2Factory = _uniswapV2Factory;
+        uniswapV2Router02 = _uniswapV2Router02;
+    }
 
     /********************************** social distribution ********************************/
     function calculateReward(uint256 from, uint256 to) public view returns (uint256 rewards) {
@@ -147,12 +146,12 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         uint256 claimFee = IPump(manager).getClaimFee();
         if (msg.value < claimFee) {
             revert CostFeeFail();
-        }else if (msg.value > claimFee) {
+        } else if (msg.value > claimFee) {
             (bool success, ) = msg.sender.call{value: msg.value - claimFee}("");
             if (!success) {
                 revert RefundFail();
             }
-        }else {
+        } else {
             address receiver = IPump(manager).getFeeReceiver();
             (bool success, ) = receiver.call{value: claimFee}("");
             if (!success) {
@@ -201,13 +200,6 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         uint256 sellsmanFee = (msg.value * feeRatio[1]) / divisor;
 
         uint256 tokenReceived = _getBuyAmountByValue(buyFunds - tiptagFee - sellsmanFee);
-        if (
-            slippage > 0 &&
-            (tokenReceived > (expectAmount * (divisor + slippage)) / divisor ||
-                tokenReceived < (expectAmount * (divisor - slippage)) / divisor)
-        ) {
-            revert OutOfSlippage();
-        }
 
         address tiptapFeeAddress = IPump(manager).getFeeReceiver();
 
@@ -244,6 +236,14 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             listed = true;
             return actualAmount;
         } else {
+            if (
+                slippage > 0 &&
+                (tokenReceived > (expectAmount * (divisor + slippage)) / divisor ||
+                    tokenReceived < (expectAmount * (divisor - slippage)) / divisor)
+            ) {
+                revert OutOfSlippage();
+            }
+
             (bool success, ) = tiptapFeeAddress.call{value: tiptagFee}("");
             if (!success) {
                 revert CostFeeFail();
@@ -276,7 +276,8 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         uint256 receivedEth = price - tiptagFee - sellsmanFee;
 
         if (
-            expectReceive > 0 && slippage > 0 &&
+            expectReceive > 0 &&
+            slippage > 0 &&
             (receivedEth > ((divisor + slippage) * expectReceive) / divisor ||
                 receivedEth < ((divisor - slippage) * expectReceive) / divisor)
         ) {
@@ -330,7 +331,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     function getBuyPriceAfterFee(uint256 amount) public view returns (uint256) {
         uint256 price = getBuyPrice(amount);
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
-        return (price * divisor / (divisor - feeRatio[0] - feeRatio[1]));
+        return ((price * divisor) / (divisor - feeRatio[0] - feeRatio[1]));
     }
 
     function getSellPriceAfterFee(uint256 amount) public view returns (uint256) {

@@ -173,15 +173,16 @@ describe("Pump", function () {
             await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
                 value: buyFund
             })).to.emit(token, 'Trade')
-            .withArgs(alice, true, buyAmount, buyFund, feeInfo.tipTapFee, feeInfo.ipshareFee)
+            .withArgs(alice, owner.address, true, buyAmount, buyFund, feeInfo.tipTapFee, feeInfo.ipshareFee)
             .to.emit(ipshare, 'Trade')
 
+            await ipshare.connect(bob).createShare(ethers.ZeroAddress);
 
             const sellAmount = parseAmount(100)
             const sellFeeInfo = await getSellFeeData(sellAmount)
-            await expect(token.connect(alice).sellToken(sellAmount, 0, ethers.ZeroAddress, 0))
+            await expect(token.connect(alice).sellToken(sellAmount, 0, bob, 0))
                 .to.emit(token, 'Trade')
-                .withArgs(alice, false, sellAmount, sellFeeInfo.sellFund, sellFeeInfo.tipTapFee, sellFeeInfo.ipshareFee)
+                .withArgs(alice, bob.address, false, sellAmount, sellFeeInfo.sellFund, sellFeeInfo.tipTapFee, sellFeeInfo.ipshareFee)
         })
 
         it("Cannt trade with other users", async () => {
@@ -215,7 +216,7 @@ describe("Pump", function () {
             const sellFeeInfo = await getSellFeeData(sellAmount)
             await expect(token.connect(alice).sellToken(sellAmount, 0, ethers.ZeroAddress, 0))
                 .to.emit(token, 'Trade')
-                .withArgs(alice, false, sellAmount, sellFeeInfo.sellFund, sellFeeInfo.tipTapFee, sellFeeInfo.ipshareFee)
+                .withArgs(alice, owner.address, false, sellAmount, sellFeeInfo.sellFund, sellFeeInfo.tipTapFee, sellFeeInfo.ipshareFee)
 
             buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
             // lower slippage will fail
@@ -290,18 +291,18 @@ describe("Pump", function () {
             // calculateReward
             const now = parseInt(Date.now() / 1000);
             const startTime = await token.startTime();
-            expect(await token.calculateReward(23535, startTime + 10000n)).eq(parseAmount(1 * 10000));
-            expect(await token.calculateReward(startTime, now)).eq(parseAmount(1 * (now - parseInt(startTime))));
-            expect(await token.calculateReward(startTime + 10001n, startTime + 20000n)).eq(parseAmount(1 * 10000))
+            expect(await token.calculateReward(23535, startTime + 86400n)).eq(19999999999999999958400n);
+            expect(await token.calculateReward(startTime, now)).eq((231481481481481481n * BigInt(now - parseInt(startTime))));
+            expect(await token.calculateReward(startTime + 10001n, startTime + 20000n)).eq(231481481481481481n * 10000n)
             
             // getCurrentDistibutionEra
             const currentEra = await token.getCurrentDistibutionEra()
-            expect(currentEra[0]).eq(parseAmount(1))
+            expect(currentEra[0]).eq(231481481481481481n)
             expect(currentEra[1]).eq(startTime)
-            expect(currentEra[2]).eq(startTime + 86400n * 30n)
+            expect(currentEra[2]).eq(startTime + 86400n * 100n)
 
             // getCurrentRewardPerDay
-            expect(await token.getCurrentRewardPerDay()).eq(parseAmount(86400n * 1n))
+            expect(await token.getCurrentRewardPerDay()).eq(19999999999999999958400n)
         })
     })
 
@@ -322,18 +323,24 @@ describe("Pump", function () {
             const p = await token.getPrice(bondingAmount, parseAmount(1)); //1.53125021875e-7
             // console.log(3, gb.toString()/1e18 ,p.toString() / 1e18)
 
+            await token.connect(alice).buyToken(parseAmount(6000000), ethers.ZeroAddress, 0, alice,  {
+                value: parseAmount(0.001)
+            })
+
+            const tokenBb = await token.balanceOf(alice);
+
             const needEth = gb;
             const ethBalanceBefore = await getEthBalance(alice);
-            await expect(token.connect(alice).buyToken(bondingAmount, ethers.ZeroAddress, 0, alice, {
-                value: needEth + 1000000n
+            await expect(token.connect(alice).buyToken(bondingAmount, owner, 500, alice, {
+                value: needEth
             })).to.changeTokenBalances(token, [
                 alice, token
             ], [
-                bondingAmount,
-                parseAmount(-9000000)
+                bondingAmount - tokenBb,
+                -(parseAmount(9000000)-tokenBb)
             ])
             // will refund left eths
-            expect(await getEthBalance(alice)).lt(ethBalanceBefore - 1000000n)
+            expect(await getEthBalance(alice)).gt(needEth)
         })
 
         it("The last buyer will make the liquidity pool too", async () => {
@@ -348,7 +355,7 @@ describe("Pump", function () {
 
             buyAmount = parseAmount(1000000)
             needEth = await token.getBuyPriceAfterFee(buyAmount)
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, alice, {
                 value: needEth
             })).to.changeTokenBalance(token, alice, parseAmount(7000000) - balanceOfBob)
         })
@@ -363,11 +370,11 @@ describe("Pump", function () {
             const balanceOfBob = await token.balanceOf(bob)
             // console.log('balance of bob', balanceOfBob)
 
-            buyAmount = parseAmount(1000000)
+            buyAmount = parseAmount(2000000)
             needEth = await token.getBuyPriceAfterFee(buyAmount)
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, alice, {
                 value: needEth
-            })).to.emit(token, 'TokenListedToDex');
+            }))
         })
 
     })

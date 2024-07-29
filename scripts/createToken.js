@@ -1,12 +1,12 @@
 const { ethers } = require('hardhat')
 
-const PumpContract = '0x9846Cd626C2f6549978aA190eD884993D4AA86BB'
+const PumpContract = '0xECf36295a20B018EDF8A9eE4a7D82a2C97EF84A5'
 
 async function main() {
     const [signer] = await ethers.getSigners();
     const pump = await ethers.getContractAt('Pump', PumpContract, signer)
-    const tx = await pump.createToken('FOMO', {
-        value: ethers.parseEther('0.0005')
+    const tx = await pump.createToken('FOMOa', {
+        value: ethers.parseEther('0.00005')
     });
     console.log(tx.hash)
     await tx.wait();

@@ -75,7 +75,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         lastClaimTime = startTime - 1;
         // TODO - need reset the distribution
         distributionEras.push(
-            Distribution({amount: 231481481481481481, startTime: startTime, stopTime: startTime + 100 * 86400})
+            Distribution({amount: 115740740740740740, startTime: startTime, stopTime: startTime + 100 * 86400})
         );
         _mint(address(this), socialDistributionAmount + bondingCurveTotalAmount + liquidityAmount);
     }
@@ -191,7 +191,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     ) public payable nonReentrant returns (uint256) {
         sellsman = _checkBondingCurveState(sellsman);
         if (receiver == address(0)) {
-            receiver = msg.sender;
+            receiver = tx.origin;
         }
 
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
@@ -373,26 +373,33 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     /********************************** to dex ********************************/
     function _makeLiquidityPool() private {
+        _mint(address(this), liquidityAmount);
         _approve(address(this), uniswapV2Router02, liquidityAmount);
 
         // v2
         // create pair
-        IUniswapV2Factory factory = IUniswapV2Factory(uniswapV2Factory);
+        // IUniswapV2Factory factory = IUniswapV2Factory(uniswapV2Factory);
         IUniswapV2Router02 router = IUniswapV2Router02(uniswapV2Router02);
 
-        address pair = factory.createPair(address(this), router.WETH());
+        // address pair = factory.createPair(address(this), router.WETH());
 
-        // add liquidity
-        router.addLiquidityETH{value: ethAmountToDex}(
-            address(this),
-            liquidityAmount,
-            0,
-            0,
-            BlackHole,
-            block.timestamp
-        );
+        router.addLiquidityETH{
+            value: msg.value
+        }(address(this), liquidityAmount, 0, 0, msg.sender, block.timestamp + 300);
+    
 
-        emit TokenListedToDex(pair);
+
+        // // add liquidity
+        // router.addLiquidityETH{value: 1000000000}(
+        //     address(this),
+        //     10**18,
+        //     0,
+        //     0,
+        //     msg.sender,
+        //     block.timestamp + 300
+        // );
+
+        // emit TokenListedToDex(pair);
 
         // v3
         // create pool

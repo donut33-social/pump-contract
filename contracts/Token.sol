@@ -386,7 +386,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
         router.addLiquidityETH{
             value: address(this).balance
-        }(address(this), liquidityAmount, 0, 0, msg.sender, block.timestamp + 300);
+        }(address(this), liquidityAmount, 0, 0, BlackHole, block.timestamp + 300);
 
         // v3
         // create pool

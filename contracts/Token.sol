@@ -20,7 +20,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     // distribute token total amount
     // 0.3572916666666667 - 1.53125021875e-7
     uint256 private constant socialDistributionAmount = 1000000 ether;
-    uint256 private constant bondingCurveTotalAmount = 70000 ether;
+    uint256 private constant bondingCurveTotalAmount = 7000000 ether;
     uint256 private constant liquidityAmount = 2000000 ether;
 
     // social distribution
@@ -61,6 +61,10 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     // uint160 private constant sqrtPrice = 343;
     uint256 private constant ethAmountToDex = 0.357291 ether;
 
+    receive() external payable {
+        buyToken(0, address(0), 0, address(0));
+    }
+
     function initialize(address manager_, address ipshareSubject_, string memory tick) public override {
         if (initialized) {
             revert TokenInitialized();
@@ -81,11 +85,11 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     }
 
     // TODO - del this
-    function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
-        WETH = _WETH;
-        uniswapV2Factory = _uniswapV2Factory;
-        uniswapV2Router02 = _uniswapV2Router02;
-    }
+    // function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
+    //     WETH = _WETH;
+    //     uniswapV2Factory = _uniswapV2Factory;
+    //     uniswapV2Router02 = _uniswapV2Router02;
+    // }
 
     /********************************** social distribution ********************************/
     function calculateReward(uint256 from, uint256 to) public view returns (uint256 rewards) {
@@ -373,7 +377,6 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     /********************************** to dex ********************************/
     function _makeLiquidityPool() private {
-        _mint(address(this), liquidityAmount);
         _approve(address(this), uniswapV2Router02, liquidityAmount);
 
         // v2
@@ -381,25 +384,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         // IUniswapV2Factory factory = IUniswapV2Factory(uniswapV2Factory);
         IUniswapV2Router02 router = IUniswapV2Router02(uniswapV2Router02);
 
-        // address pair = factory.createPair(address(this), router.WETH());
-
         router.addLiquidityETH{
-            value: msg.value
+            value: address(this).balance
         }(address(this), liquidityAmount, 0, 0, msg.sender, block.timestamp + 300);
-    
-
-
-        // // add liquidity
-        // router.addLiquidityETH{value: 1000000000}(
-        //     address(this),
-        //     10**18,
-        //     0,
-        //     0,
-        //     msg.sender,
-        //     block.timestamp + 300
-        // );
-
-        // emit TokenListedToDex(pair);
 
         // v3
         // create pool

@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/utils/Nonces.sol";
 import "./interface/IPump.sol";
 import "./Token.sol";
 import "./interface/IIPShare.sol";
+// import "hardhat/console.sol";
 
 contract Pump is Ownable, Nonces, IPump {
-    address public immutable tokenImplementation;
     address private ipshare;
     uint256 public createFee = 0.00005 ether;
     uint256 private claimFee = 0.000005 ether;
@@ -23,19 +23,10 @@ contract Pump is Ownable, Nonces, IPump {
     uint256 public totalTokens;
 
     constructor(address _ipshare, address _feeReceiver) Ownable(msg.sender) {
-        tokenImplementation = address(new Token());
-        string memory tick = 'Matrix';
         ipshare = _ipshare;
         feeReceiver = _feeReceiver;
         feeRatio = [100, 100];
         claimSigner = msg.sender;
-        emit NewToken(tick, tokenImplementation, msg.sender);
-        Token(tokenImplementation).initialize(
-            _ipshare,
-            msg.sender,
-            tick
-        );
-        createdTicks[tick] = true;
     }
 
     receive() external payable {}
@@ -121,15 +112,18 @@ contract Pump is Ownable, Nonces, IPump {
         //     }
         // }
 
-        bytes32 salt;
-        unchecked {
-            salt = keccak256(abi.encodePacked(tick, _useNonce(address(creator)), address(creator)));
-        }
+        // bytes32 salt;
+        // unchecked {
+        //     salt = keccak256(abi.encodePacked(tick, _useNonce(address(creator)), address(creator)));
+        // }
 
-        address instance = Clones.cloneDeterministic(tokenImplementation, salt);
+        Token token = new Token();
+        address instance  = address(token);
+
+        // address instance = Clones.cloneDeterministic(tokenImplementation, salt);
         emit NewToken(tick, instance, creator);
         
-        Token(instance).initialize(
+        token.initialize(
             address(this),
             creator,
             tick

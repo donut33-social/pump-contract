@@ -38,7 +38,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     uint256 public totalClaimedSocialRewards;
 
     uint256 public startTime;
-    mapping(uint256 => bool) private claimedOrder;
+    mapping(uint256 => bool) public claimedOrder;
 
     // bonding curve
     uint256 public bondingCurveSupply;
@@ -62,7 +62,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     uint256 private constant ethAmountToDex = 0.357291 ether;
 
     receive() external payable {
-        buyToken(0, address(0), 0, address(0));
+        if (!listed) {
+            buyToken(0, address(0), 0, address(0));
+        }
     }
 
     function initialize(address manager_, address ipshareSubject_, string memory tick) public override {

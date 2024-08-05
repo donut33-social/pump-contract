@@ -22,6 +22,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     uint256 private constant socialDistributionAmount = 1000000 ether;
     uint256 private constant bondingCurveTotalAmount = 7000000 ether;
     uint256 private constant liquidityAmount = 2000000 ether;
+    uint256 private constant totalLockedInBondingCurvePeriod = 1000000 ether;
 
     // social distribution
     struct Distribution {
@@ -39,6 +40,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     uint256 public startTime;
     mapping(uint256 => bool) public claimedOrder;
+    mapping(address => uint256) public userLockedInBondingCurve;
 
     // bonding curve
     uint256 public bondingCurveSupply;
@@ -254,6 +256,15 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             if (!success) {
                 revert CostFeeFail();
             }
+
+            // update user locked amount
+            if (bondingCurveSupply < totalLockedInBondingCurvePeriod) {
+                uint256 needLock = totalLockedInBondingCurvePeriod - bondingCurveSupply;
+                if (tokenReceived < needLock) {
+                    needLock = tokenReceived;
+                }
+                userLockedInBondingCurve[receiver] += needLock;
+            }
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
             this.transfer(receiver, tokenReceived);
             bondingCurveSupply += tokenReceived;
@@ -268,6 +279,13 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         uint256 sellAmount = amount;
         if (balanceOf(msg.sender) < sellAmount) {
             sellAmount = balanceOf(msg.sender);
+        }
+        if (sellAmount == 0) revert InsufficientBalance();
+        if (balanceOf(msg.sender) - sellAmount < userLockedInBondingCurve[msg.sender]) {
+            if (balanceOf(msg.sender) <= userLockedInBondingCurve[msg.sender]) {
+                revert CanntSellLockedToken();
+            }
+            sellAmount = balanceOf(msg.sender) - userLockedInBondingCurve[msg.sender];
         }
         uint256 afterSupply = 0;
         afterSupply = bondingCurveSupply - sellAmount;

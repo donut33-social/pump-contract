@@ -15,6 +15,7 @@ interface IToken {
     error RefundFail();
     error CostFeeFail();
     error CreateDexPoolFail();
+    error CanntSellLockedToken();
 
     event ClaimDistributedReward(uint256 indexed timestamp, uint256 indexed amount);
     event UserClaimReward(uint256 indexed orderId, address indexed user, uint256 indexed amount);

@@ -19,6 +19,7 @@ interface IPump {
     event FeeAddressChanged(address indexed oldAddress, address indexed newAddress);
     event FeeRatiosChanged(uint256 indexed donutFee, uint256 indexed sellsmanFee);
     event ClaimSignerChanged(address indexed oldSigner, address indexed newSigner);
+    event LockTimeChanged(uint256 indexed oldLockTime, uint256 indexed newLockTime);
 
     function getIPShare() external view returns (address);
     function getFeeReceiver() external view returns (address);
@@ -26,4 +27,5 @@ interface IPump {
     function getClaimFee() external view returns (uint256);
     function createToken(string calldata tick) external payable returns (address);
     function getClaimSigner() external view returns (address);
+    function getLockTime() external view returns (uint256);
 }

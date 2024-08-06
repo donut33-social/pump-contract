@@ -37,6 +37,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     uint256 public pendingClaimSocialRewards;
     // total claimed reward from social pool
     uint256 public totalClaimedSocialRewards;
+    uint256 public unlockTime;
 
     uint256 public startTime;
     mapping(uint256 => bool) public claimedOrder;
@@ -81,6 +82,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         // before dawn of today
         startTime = block.timestamp - (block.timestamp % secondPerDay);
         lastClaimTime = startTime - 1;
+        unlockTime = block.timestamp + IPump(manager).getLockTime();
         // TODO - need reset the distribution
         distributionEras.push(
             Distribution({amount: 115740740740740740, startTime: startTime, stopTime: startTime + 100 * 86400})
@@ -258,7 +260,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             }
 
             // update user locked amount
-            if (bondingCurveSupply < totalLockedInBondingCurvePeriod) {
+            if (block.timestamp < unlockTime && bondingCurveSupply < totalLockedInBondingCurvePeriod) {
                 uint256 needLock = totalLockedInBondingCurvePeriod - bondingCurveSupply;
                 if (tokenReceived < needLock) {
                     needLock = tokenReceived;
@@ -281,7 +283,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             sellAmount = balanceOf(msg.sender);
         }
         if (sellAmount == 0) revert InsufficientBalance();
-        if (balanceOf(msg.sender) - sellAmount < userLockedInBondingCurve[msg.sender]) {
+        if (block.timestamp < unlockTime && balanceOf(msg.sender) - sellAmount < userLockedInBondingCurve[msg.sender]) {
             if (balanceOf(msg.sender) <= userLockedInBondingCurve[msg.sender]) {
                 revert CanntSellLockedToken();
             }

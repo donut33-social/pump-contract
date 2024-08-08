@@ -7,8 +7,8 @@ async function main() {
         const [signer] = await ethers.getSigners();
        
         const token = await ethers.getContractAt('Token', TokenContract)
-        console.log(await token.symbol(), await token.balanceOf(signer.address), await token.listed())
-        // return;
+        console.log(signer.address, await token.symbol(), await token.balanceOf(signer.address), await token.listed())
+        return;
         const tx = await token.buyToken(ethers.parseEther('7000000'), ethers.ZeroAddress, 0, '0x2DaE3A44D3C6e9Ab402f6e616ce1d02c1836A6Ac', {
             value: ethers.parseEther('0.03')
         })

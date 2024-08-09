@@ -369,18 +369,18 @@ describe("Pump", function () {
             // calculateReward
             const now = parseInt(Date.now() / 1000);
             const startTime = await token.startTime();
-            expect(await token.calculateReward(23535, startTime + 86400n)).eq(9999999999999999936000n);
-            expect(await token.calculateReward(startTime, now)).eq((115740740740740740n * BigInt(now - parseInt(startTime))));
-            expect(await token.calculateReward(startTime + 10001n, startTime + 20000n)).eq(115740740740740740n * 10000n)
+            expect(await token.calculateReward(23535, startTime + 86400n)).eq(0);
+            expect(await token.calculateReward(startTime, now)).eq(0);
+            expect(await token.calculateReward(startTime + 10001n, startTime + 20000n)).eq(0)
             
             // getCurrentDistibutionEra
             const currentEra = await token.getCurrentDistibutionEra()
-            expect(currentEra[0]).eq(115740740740740740n)
-            expect(currentEra[1]).eq(startTime)
-            expect(currentEra[2]).eq(startTime + 86400n * 100n)
+            expect(currentEra[0]).eq(0)
+            expect(currentEra[1]).eq(0)
+            expect(currentEra[2]).eq(0)
 
             // getCurrentRewardPerDay
-            expect(await token.getCurrentRewardPerDay()).eq(9999999999999999936000n)
+            expect(await token.getCurrentRewardPerDay()).eq(0)
         })
     })
 
@@ -415,7 +415,7 @@ describe("Pump", function () {
                 alice, token
             ], [
                 bondingAmount - tokenBb,
-                -(parseAmount(9000000)-tokenBb)
+                -(parseAmount(8500000)-tokenBb)
             ])
             // will refund left eths
             expect(await getEthBalance(alice)).gt(needEth)
@@ -486,6 +486,24 @@ describe("Pump", function () {
                 ], [
                     parseAmount(-1000), parseAmount(1000)
                 ])
+        })
+
+        it("Social curation reward calculation", async () => {
+            // calculateReward
+            const now = parseInt(Date.now() / 1000);
+            const startTime = await token.startTime();
+            expect(await token.calculateReward(23535, startTime + 86400n)).eq(9999999999999999936000n);
+            expect(await token.calculateReward(startTime, now)).eq((115740740740740740n * BigInt(now - parseInt(startTime))));
+            expect(await token.calculateReward(startTime + 10001n, startTime + 20000n)).eq(115740740740740740n * 10000n)
+            
+            // getCurrentDistibutionEra
+            const currentEra = await token.getCurrentDistibutionEra()
+            expect(currentEra[0]).eq(115740740740740740n)
+            expect(currentEra[1]).eq(startTime)
+            expect(currentEra[2]).eq(startTime + 86400n * 100n)
+
+            // getCurrentRewardPerDay
+            expect(await token.getCurrentRewardPerDay()).eq(9999999999999999936000n)
         })
 
         it("Can claim curation token", async () => {

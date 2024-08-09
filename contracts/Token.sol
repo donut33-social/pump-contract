@@ -19,12 +19,12 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     // distribute token total amount
     // 0.3572916666666667 - 1.53125021875e-7
-    uint256 private constant socialDistributionAmount = 1000000 ether;
+    uint256 private constant socialDistributionAmount = 1500000 ether;
     uint256 private constant bondingCurveTotalAmount = 7000000 ether;
-    uint256 private constant liquidityAmount = 2000000 ether;
+    uint256 private constant liquidityAmount = 1500000 ether;
     uint256 private constant totalLockedInBondingCurvePeriod = 1000000 ether;
 
-    // social distribution
+    // social distribution - start util the list event
     struct Distribution {
         uint256 amount;
         uint256 startTime;
@@ -33,8 +33,8 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     Distribution[] private distributionEras;
     // last claim to social pool time
     uint256 public lastClaimTime;
-    // pending reward in social pool to claim
-    uint256 public pendingClaimSocialRewards;
+    // pending reward in social pool to claim, init 500k to the bonding curve period
+    uint256 public pendingClaimSocialRewards = 500000 ether;
     // total claimed reward from social pool
     uint256 public totalClaimedSocialRewards;
     uint256 public unlockTime;
@@ -58,10 +58,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     address private uniswapV2Factory = 0x6725F303b657a9451d8BA641348b6761A6CC7a17;
     address private uniswapV2Router02 = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
 
-    // address private constant positionManager = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    // address private constant uniswapV3Facotry = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
     address private constant BlackHole = 0x000000000000000000000000000000000000dEaD;
-    // uint160 private constant sqrtPrice = 343;
     uint256 private constant ethAmountToDex = 0.357291 ether;
 
     receive() external payable {
@@ -83,22 +80,19 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         startTime = block.timestamp - (block.timestamp % secondPerDay);
         lastClaimTime = startTime - 1;
         unlockTime = block.timestamp + IPump(manager).getLockTime();
-        // TODO - need reset the distribution
-        distributionEras.push(
-            Distribution({amount: 115740740740740740, startTime: startTime, stopTime: startTime + 100 * 86400})
-        );
         _mint(address(this), socialDistributionAmount + bondingCurveTotalAmount + liquidityAmount);
     }
 
     // TODO - del this
-    // function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
-    //     WETH = _WETH;
-    //     uniswapV2Factory = _uniswapV2Factory;
-    //     uniswapV2Router02 = _uniswapV2Router02;
-    // }
+    function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
+        WETH = _WETH;
+        uniswapV2Factory = _uniswapV2Factory;
+        uniswapV2Router02 = _uniswapV2Router02;
+    }
 
     /********************************** social distribution ********************************/
     function calculateReward(uint256 from, uint256 to) public view returns (uint256 rewards) {
+        if (!listed) return 0;
         uint256 rewardedTime = from - 1;
         if (rewardedTime < startTime) {
             rewardedTime = startTime;
@@ -410,6 +404,13 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         router.addLiquidityETH{
             value: address(this).balance
         }(address(this), liquidityAmount, 0, 0, BlackHole, block.timestamp + 300);
+
+        startTime = block.timestamp - (block.timestamp % secondPerDay);
+        lastClaimTime = startTime - 1;
+
+        distributionEras.push(
+            Distribution({amount: 115740740740740740, startTime: startTime, stopTime: startTime + 100 * 86400})
+        );
 
         emit TokenListedToDex(pair);
 

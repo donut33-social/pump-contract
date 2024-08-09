@@ -1,4 +1,4 @@
-const { loadFixture } = require('@nomicfoundation/hardhat-toolbox/network-helpers');
+const { loadFixture, mine } = require('@nomicfoundation/hardhat-toolbox/network-helpers');
 const { expect } = require('chai');
 const { deployPumpFactory, deployIPShare } = require('./common')
 const { ethers } = require('hardhat')
@@ -465,6 +465,7 @@ describe("Pump", function () {
             token = await ethers.getContractAt('Token', '0x61c36a8d610163660e21a8b7359e1cac0c9133e1')
             await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
             feeRatio = await getFeeRatio();
+            await mine(86400);
             let buyAmount = parseAmount(7100000)
             let needEth = await token.getBuyPriceAfterFee(buyAmount)
             await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
@@ -490,7 +491,10 @@ describe("Pump", function () {
 
         it("Social curation reward calculation", async () => {
             // calculateReward
-            const now = parseInt(Date.now() / 1000);
+            // const now = parseInt(Date.now() / 1000);
+            const blockNumber = await ethers.provider.getBlockNumber();
+            const block = await ethers.provider.getBlock(blockNumber);
+            const now = block.timestamp;
             const startTime = await token.startTime();
             expect(await token.calculateReward(23535, startTime + 86400n)).eq(9999999999999999936000n);
             expect(await token.calculateReward(startTime, now)).eq((115740740740740740n * BigInt(now - parseInt(startTime))));
@@ -511,8 +515,10 @@ describe("Pump", function () {
             const totalClaimedSocialRewards = await token.totalClaimedSocialRewards();
             console.log(1, pendingClaimSocialRewards, totalClaimedSocialRewards)
 
-            const timestamp = Date.now()
-            expect(await token.startTime()).eq(parseInt((timestamp - timestamp % 86400000) / 1000));
+            const blockNumber = await ethers.provider.getBlockNumber();
+            const block = await ethers.provider.getBlock(blockNumber);
+            const timestamp = block.timestamp;
+            expect(await token.startTime()).eq(parseInt((timestamp - timestamp % 86400)));
             let claimAmount = parseAmount(100);
             let orderId = 23059723523125626n;
             let signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
@@ -610,7 +616,9 @@ describe("Pump", function () {
         })
 
         it("Can swap token with uniswap", async () => {
-            const now = parseInt(Date.now() / 1000) + 10;
+            const blockNumber = await ethers.provider.getBlockNumber();
+            const block = await ethers.provider.getBlock(blockNumber);
+            const now = block.timestamp + 10;
             await token.connect(bob).approve(uniswapV2Router02, parseAmount(100000000));
             await expect(uniswapV2Router02.connect(bob).swapExactTokensForETH(
                 parseAmount(100000),

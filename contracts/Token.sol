@@ -18,10 +18,10 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     uint256 private constant divisor = 10000;
 
     // distribute token total amount
-    // 0.3572916666666667 - 1.53125021875e-7
     uint256 private constant socialDistributionAmount = 1500000 ether;
     uint256 private constant bondingCurveTotalAmount = 7000000 ether;
     uint256 private constant liquidityAmount = 1500000 ether;
+    // first 100000 of 7000000 in bonding curve will be locked for 3 days
     uint256 private constant totalLockedInBondingCurvePeriod = 1000000 ether;
 
     // social distribution - start util the list event
@@ -59,6 +59,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     address private uniswapV2Router02 = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
 
     address private constant BlackHole = 0x000000000000000000000000000000000000dEaD;
+    // 0.3572916666666667 - price: 2.041667e-7
     uint256 private constant ethAmountToDex = 0.357291 ether;
 
     receive() external payable {

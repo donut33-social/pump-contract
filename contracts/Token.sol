@@ -45,7 +45,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     // bonding curve
     uint256 public bondingCurveSupply;
-    uint256 private constant priceParam = 320 ether;
+    uint256 private constant priceParam = 11.43333333 ether;
 
     // state
     address private manager;
@@ -59,8 +59,8 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     address private uniswapV2Router02 = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
 
     address private constant BlackHole = 0x000000000000000000000000000000000000dEaD;
-    // 0.3572916666666667 - price: 2.041667e-7
-    uint256 private constant ethAmountToDex = 0.357291 ether;
+    // 10 - price: 2.041667e-7
+    uint256 private constant ethAmountToDex = 10 ether;
 
     receive() external payable {
         if (!listed) {
@@ -286,7 +286,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         }
         uint256 afterSupply = 0;
         afterSupply = bondingCurveSupply - sellAmount;
-
+        
         uint256 price = getPrice(afterSupply, sellAmount);
 
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();

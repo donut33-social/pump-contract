@@ -284,29 +284,29 @@ describe("IPShare", function () {
                     alice,
                     subject,
                     true,
-                    251378282274884972202n,
+                    25736762993503133133n,
                     10000000000000000n,
                     250000000000000n,
                     450000000000000n,
-                    261378282274884972202n
+                    35736762993503133133n
                 )
 
-            await expect(sellIPShare(subject, alice, parseAmount(100)))
+            await expect(sellIPShare(subject, alice, parseAmount(10)))
                 .to.emit(ipshare, 'Trade')
                 .withArgs(
                     alice,
                     subject,
                     false,
-                    100000000000000000000n,
-                    7111579929814731n,
-                    177789498245368n,
-                    320021096841662n,
-                    161378282274884972202n
+                    10000000000000000000n,
+                    5956762079075731n,
+                    148919051976893n,
+                    268054293558407n,
+                    25736762993503133133n
                 )
         })
 
         it('Can stake and unstake shares', async () => {
-            await buyIPShare(subject, alice, 0.001)
+            await buyIPShare(subject, alice, 0.1)
             await expect(ipshare.connect(alice).stake(subject, parseAmount(30)))
                 .to.emit(ipshare, 'Stake')
                 .withArgs(alice, subject, true, parseAmount(30), parseAmount(30))
@@ -327,7 +327,7 @@ describe("IPShare", function () {
         })
 
         it("Can capture value and claim reward", async () => {
-            await buyIPShare(subject, alice, 0.001)
+            await buyIPShare(subject, alice, 0.1)
             await ipshare.connect(alice).stake(subject, parseAmount(10))
             await expect(ipshare.valueCapture(subject, {
                 value: parseAmount(0.1)

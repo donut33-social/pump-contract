@@ -62,8 +62,8 @@ describe("Pump", function () {
         })
 
         it("Everyone can create more than one token", async () => {
-            let token1 = await pump.connect(alice).createToken('T1', { value: parseAmount(0.00005)}); // 0x61c36a8d610163660e21a8b7359e1cac0c9133e1
-            let token2 = await pump.connect(alice).createToken('T2', { value: parseAmount(0.00005)}); // 0x23db4a08f2272df049a4932a4cc3a6dc1002b33e
+            let token1 = await pump.connect(alice).createToken('T1', { value: parseAmount(0.001)}); // 0x61c36a8d610163660e21a8b7359e1cac0c9133e1
+            let token2 = await pump.connect(alice).createToken('T2', { value: parseAmount(0.001)}); // 0x23db4a08f2272df049a4932a4cc3a6dc1002b33e
 
             token1 = await ethers.getContractAt('Token', '0x61c36a8d610163660e21a8b7359e1cac0c9133e1');
             token2 = await ethers.getContractAt('Token', '0x23db4a08f2272df049a4932a4cc3a6dc1002b33e')
@@ -87,7 +87,7 @@ describe("Pump", function () {
     describe('Token before list', function () {
         let token;
         beforeEach(async () => {
-            token = await pump.createToken('T1', { value: parseAmount(0.00005) })
+            token = await pump.createToken('T1', { value: parseAmount(0.001) })
             token = await ethers.getContractAt('Token', '0x61c36a8d610163660e21a8b7359e1cac0c9133e1')
             await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
             // console.log(1, weth.target, uniswapV2Factory.target, uniswapV2Router02.target)
@@ -128,7 +128,7 @@ describe("Pump", function () {
             const feeInfo = await getBuyFeeData(buyFund)
             const buyAmount = await imp.getBuyAmountByValue(feeInfo.buyFund)
 
-            await pump.createToken('T2', { value: parseAmount(0.10005) })
+            await pump.createToken('T2', { value: parseAmount(0.101) })
             let token = await ethers.getContractAt('Token', '0x23db4a08f2272df049a4932a4cc3a6dc1002b33e')
             expect(await token.balanceOf(owner)).eq(buyAmount)
         })
@@ -148,7 +148,7 @@ describe("Pump", function () {
         })
 
         it("will revert when sell token if all of them locked", async () => {
-            const buyFund = parseAmount(0.000001)
+            const buyFund = parseAmount(0.0001)
 
             const feeInfo = await getBuyFeeData(buyFund)
             const buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
@@ -168,7 +168,7 @@ describe("Pump", function () {
             .to.revertedWithCustomError(token, 'CanntSellLockedToken');
 
             await token.connect(carol).buyToken(parseAmount(5000000), ethers.ZeroAddress, 0, carol, {
-                value: parseAmount(0.1)
+                value: parseAmount(1)
             })
 
             await expect(token.connect(alice).sellToken(parseAmount(1000000), 0, ethers.ZeroAddress, 0))
@@ -182,10 +182,10 @@ describe("Pump", function () {
         })
 
         it("Cannt sell the locked when buying in creation", async () => {
-            await pump.createToken('T2', { value: parseAmount(0.00055) })
+            await pump.createToken('T2', { value: parseAmount(0.0015) })
             let token = await ethers.getContractAt('Token', '0x23db4a08f2272df049a4932a4cc3a6dc1002b33e')
             
-            expect(await token.balanceOf(owner)).eq(777718514002953917267570n);
+            expect(await token.balanceOf(owner)).eq(256151399676714770081640n);
 
             await expect(token.sellToken(parseAmount(500000), 0, ethers.ZeroAddress, 0))
             .to.revertedWithCustomError(token, 'CanntSellLockedToken');
@@ -198,7 +198,7 @@ describe("Pump", function () {
             });
 
             await token .connect(alice).buyToken(parseAmount(100000), ethers.ZeroAddress, 0, alice, {
-                value: parseAmount(0.001)
+                value: parseAmount(0.01)
             });
 
             await expect(token.connect(alice).sellToken(parseAmount(100000), 0, ethers.ZeroAddress, 0))
@@ -388,7 +388,7 @@ describe("Pump", function () {
         let token;
         let feeRatio;
         beforeEach(async () => {
-            token = await pump.createToken('T1', { value: parseAmount(0.00005) })
+            token = await pump.createToken('T1', { value: parseAmount(0.001) })
             token = await ethers.getContractAt('Token', '0x61c36a8d610163660e21a8b7359e1cac0c9133e1')
             await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
             feeRatio = await getFeeRatio();
@@ -399,7 +399,10 @@ describe("Pump", function () {
             const bondingAmount = parseAmount(7000000)
             const gb = await token.getETHAmountToDex() // 0.3572916666666667
             const p = await token.getPrice(bondingAmount, parseAmount(1)); //1.53125021875e-7
-            // console.log(3, gb.toString()/1e18 ,p.toString() / 1e18)
+            const t = await token.getPrice(0, bondingAmount);
+            const buya = await token.getBuyPriceAfterFee(bondingAmount);
+            const buyb = await token.getBuyPriceAfterFee(parseAmount(2000000));
+            console.log(3, buyb.toString()/1e18 ,p.toString() / 1e18, buya.toString() / 1e18, t.toString() / 1e18)
 
             await token.connect(alice).buyToken(parseAmount(6000000), ethers.ZeroAddress, 0, alice,  {
                 value: parseAmount(0.001)
@@ -422,10 +425,10 @@ describe("Pump", function () {
         })
 
         it("The last buyer will make the liquidity pool too", async () => {
-            let buyAmount = parseAmount(6000000)
+            let buyAmount = parseAmount(6000010)
             let needEth = await token.getBuyPriceAfterFee(buyAmount)
             await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
-                value: needEth
+                value: needEth 
             })
 
             const balanceOfBob = await token.balanceOf(bob)
@@ -461,7 +464,7 @@ describe("Pump", function () {
         let token;
         let feeRatio;
         beforeEach(async () => {
-            token = await pump.createToken('T1', { value: parseAmount(0.00005) })
+            token = await pump.createToken('T1', { value: parseAmount(0.001) })
             token = await ethers.getContractAt('Token', '0x61c36a8d610163660e21a8b7359e1cac0c9133e1')
             await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
             feeRatio = await getFeeRatio();
@@ -560,7 +563,7 @@ describe("Pump", function () {
             const signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
             await expect(token.connect(alice).userClaim(token, orderId, claimAmount, signature, {
                 value: parseAmount(0.1)
-            })).to.changeEtherBalance(alice, parseAmount(-0.000005))
+            })).to.changeEtherBalance(alice, parseAmount(-0.0001))
         })
 
         it('will revert if the claim amount is greater than social pool', async () => {

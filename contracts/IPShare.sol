@@ -116,7 +116,7 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         subjectFeePercent = 450;
         donutFeePercent = 250;
         createFee = 0;
-        donutFeeDestination = msg.sender;
+        donutFeeDestination = 0x06Deb72b2e156Ddd383651aC3d2dAb5892d9c048;
     }
 
     // 

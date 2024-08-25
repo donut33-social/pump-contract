@@ -27,7 +27,7 @@ contract Pump is Ownable, Nonces, IPump {
         ipshare = _ipshare;
         feeReceiver = _feeReceiver;
         feeRatio = [100, 100];
-        claimSigner = msg.sender;
+        claimSigner = 0x78C2aF38330C5b41Ae7946A313e43cDCEEaf8611;
     }
 
     receive() external payable {}

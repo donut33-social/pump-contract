@@ -71,6 +71,13 @@ module.exports = {
     hardhat: {
       chainId: 97
     },
+    base: {
+      url: process.env.BASE,
+      chainId: 8453,
+      accounts: [
+        process.env.KEY
+      ]
+    },
     bitlayer: {
       url: 'https://rpc.bitlayer.org',
       chainId: 200901,

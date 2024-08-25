@@ -45,7 +45,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     // bonding curve
     uint256 public bondingCurveSupply;
-    uint256 private constant priceParam = 11.43333333 ether;
+    uint256 private constant priceParam = 11_433_333_333_333_333_333;
 
     // state
     address private manager;
@@ -83,13 +83,6 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         unlockTime = block.timestamp + IPump(manager).getLockTime();
         _mint(address(this), socialDistributionAmount + bondingCurveTotalAmount + liquidityAmount);
     }
-
-    // TODO - del this
-    // function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
-    //     WETH = _WETH;
-    //     uniswapV2Factory = _uniswapV2Factory;
-    //     uniswapV2Router02 = _uniswapV2Router02;
-    // }
 
     /********************************** social distribution ********************************/
     function calculateReward(uint256 from, uint256 to) public view returns (uint256 rewards) {

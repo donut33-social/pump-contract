@@ -54,9 +54,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     bool initialized = false;
 
     // dex
-    address private WETH = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;
-    address private uniswapV2Factory = 0x6725F303b657a9451d8BA641348b6761A6CC7a17;
-    address private uniswapV2Router02 = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
+    address private WETH = 0x4200000000000000000000000000000000000006;
+    address private uniswapV2Factory = 0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6;
+    address private uniswapV2Router02 = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
 
     address private constant BlackHole = 0x000000000000000000000000000000000000dEaD;
     // 10 - price: 2.041667e-7
@@ -85,11 +85,11 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     }
 
     // TODO - del this
-    function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
-        WETH = _WETH;
-        uniswapV2Factory = _uniswapV2Factory;
-        uniswapV2Router02 = _uniswapV2Router02;
-    }
+    // function setUniForTest(address _WETH, address _uniswapV2Factory, address _uniswapV2Router02) public {
+    //     WETH = _WETH;
+    //     uniswapV2Factory = _uniswapV2Factory;
+    //     uniswapV2Router02 = _uniswapV2Router02;
+    // }
 
     /********************************** social distribution ********************************/
     function calculateReward(uint256 from, uint256 to) public view returns (uint256 rewards) {

@@ -9,7 +9,6 @@ import "./interface/IIPShare.sol";
 import "./interface/IPump.sol";
 import "./interface/IUniswapV2Router02.sol";
 import "./interface/IUniswapV2Factory.sol";
-// import "hardhat/console.sol";
 
 contract Token is IToken, ERC20, ReentrancyGuard {
     string private _name;
@@ -18,11 +17,11 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     uint256 private constant divisor = 10000;
 
     // distribute token total amount
-    uint256 private constant socialDistributionAmount = 1500000 ether;
-    uint256 private constant bondingCurveTotalAmount = 7000000 ether;
-    uint256 private constant liquidityAmount = 1500000 ether;
-    // first 100000 of 7000000 in bonding curve will be locked for 3 days
-    uint256 private constant totalLockedInBondingCurvePeriod = 1000000 ether;
+    uint256 private constant socialDistributionAmount = 150000000 ether;
+    uint256 private constant bondingCurveTotalAmount = 700000000 ether;
+    uint256 private constant liquidityAmount = 150000000 ether;
+    // first 10000000 of 700000000 in bonding curve will be locked for 3 days
+    uint256 private constant totalLockedInBondingCurvePeriod = 100000000 ether;
 
     // social distribution - start util the list event
     struct Distribution {
@@ -34,7 +33,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     // last claim to social pool time
     uint256 public lastClaimTime;
     // pending reward in social pool to claim, init 500k to the bonding curve period
-    uint256 public pendingClaimSocialRewards = 500000 ether;
+    uint256 public pendingClaimSocialRewards = 50000000 ether;
     // total claimed reward from social pool
     uint256 public totalClaimedSocialRewards;
     uint256 public unlockTime;
@@ -191,7 +190,6 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         if (receiver == address(0)) {
             receiver = tx.origin;
         }
-
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
         uint256 buyFunds = msg.value;
         uint256 tiptagFee = (msg.value * feeRatio[0]) / divisor;
@@ -248,6 +246,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             }
 
             // update user locked amount
+
             if (block.timestamp < unlockTime && bondingCurveSupply < totalLockedInBondingCurvePeriod) {
                 uint256 needLock = totalLockedInBondingCurvePeriod - bondingCurveSupply;
                 if (tokenReceived < needLock) {
@@ -255,6 +254,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
                 }
                 userLockedInBondingCurve[receiver] += needLock;
             }
+
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
             this.transfer(receiver, tokenReceived);
             bondingCurveSupply += tokenReceived;
@@ -330,6 +330,8 @@ contract Token is IToken, ERC20, ReentrancyGuard {
      * calculate the eth price when user buy amount tokens
      */
     function getPrice(uint256 supply, uint256 amount) public pure returns (uint256) {
+        supply = supply / 100;
+        amount = amount / 100;
         uint256 price = amount * (amount ** 2 + 3 * amount * supply + 3 * (supply ** 2));
         return price / priceParam / 3e36;
     }
@@ -355,7 +357,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     }
 
     function _getBuyAmountByValue(uint256 ethAmount) private view returns (uint256) {
-        return floorCbrt(ethAmount * priceParam * 3e36 + bondingCurveSupply ** 3) - bondingCurveSupply;
+        return (floorCbrt(ethAmount * priceParam * 3e36 + 
+                (bondingCurveSupply / 100) ** 3) - (bondingCurveSupply / 100)) 
+                * 100;
     }
 
     function getBuyAmountByValue(uint256 ethAmount) public view returns (uint256) {
@@ -403,7 +407,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         lastClaimTime = startTime - 1;
 
         distributionEras.push(
-            Distribution({amount: 115740740740740740, startTime: startTime, stopTime: startTime + 100 * 86400})
+            Distribution({amount: 11574074074074074000, startTime: startTime, stopTime: startTime + 100 * 86400})
         );
 
         emit TokenListedToDex(pair);

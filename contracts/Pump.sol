@@ -11,8 +11,8 @@ import "./interface/IIPShare.sol";
 
 contract Pump is Ownable, Nonces, IPump {
     address private ipshare;
-    uint256 public createFee = 0.001 ether;
-    uint256 private claimFee = 0.0001 ether;
+    uint256 public createFee = 5 ether;
+    uint256 private claimFee = 0.5 ether;
     address private feeReceiver;
     address private claimSigner;
     uint256 private lockTime = 3 * 86400;
@@ -27,7 +27,7 @@ contract Pump is Ownable, Nonces, IPump {
         ipshare = _ipshare;
         feeReceiver = _feeReceiver;
         feeRatio = [100, 100];
-        claimSigner = 0x78C2aF38330C5b41Ae7946A313e43cDCEEaf8611;
+        claimSigner = msg.sender;
     }
 
     receive() external payable {}
@@ -39,7 +39,7 @@ contract Pump is Ownable, Nonces, IPump {
     }
 
     function adminChangeCreateFee(uint256 _createFee) public onlyOwner {
-        if (_createFee > 0.1 ether) {
+        if (_createFee > 500 ether) {
             revert TooMuchFee();
         }
         emit CreateFeeChanged(createFee, _createFee);

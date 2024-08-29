@@ -9,6 +9,7 @@ import "./interface/IIPShare.sol";
 import "./interface/IPump.sol";
 import "./interface/IUniswapV2Router02.sol";
 import "./interface/IUniswapV2Factory.sol";
+// import "hardhat/console.sol";
 
 contract Token is IToken, ERC20, ReentrancyGuard {
     string private _name;
@@ -44,7 +45,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     // bonding curve
     uint256 public bondingCurveSupply;
-    uint256 private constant priceParam = 11_433_333_333_333_333_333;
+    uint256 private constant priceParam = 0.00381 ether;
 
     // state
     address private manager;
@@ -53,18 +54,24 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     bool initialized = false;
 
     // dex
-    address private WETH = 0x4200000000000000000000000000000000000006;
-    address private uniswapV2Factory = 0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6;
-    address private uniswapV2Router02 = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+    address private WETH = 0x217dffF57E3b855803CE88a1374C90759Ea071bD;
+    address private uniswapV2Factory = 0x7bf960B15Cbd9976042257Be3F6Bb2361E107384;
+    address private uniswapV2Router02 = 0x3653d15A4Ed7E9acAA9AC7C5DB812e8A7a90DF9e;
 
     address private constant BlackHole = 0x000000000000000000000000000000000000dEaD;
-    // 10 - price: 2.041667e-7
-    uint256 private constant ethAmountToDex = 10 ether;
+    // 30000 - price: 2.041667e-7
+    uint256 private constant ethAmountToDex = 30000 ether;
 
     receive() external payable {
         if (!listed) {
             buyToken(0, address(0), 0, address(0));
         }
+    }
+
+    function setUniForTest(address _weth, address _uniswapV2Factory, address _uniswapV2Router02) public {
+        WETH = _weth;
+        uniswapV2Factory = _uniswapV2Factory;
+        uniswapV2Router02 = _uniswapV2Router02;
     }
 
     function initialize(address manager_, address ipshareSubject_, string memory tick) public override {
@@ -267,16 +274,22 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         sellsman = _checkBondingCurveState(sellsman);
 
         uint256 sellAmount = amount;
+        
         if (balanceOf(msg.sender) < sellAmount) {
             sellAmount = balanceOf(msg.sender);
         }
+        
         if (sellAmount == 0) revert InsufficientBalance();
         if (block.timestamp < unlockTime && balanceOf(msg.sender) - sellAmount < userLockedInBondingCurve[msg.sender]) {
             if (balanceOf(msg.sender) <= userLockedInBondingCurve[msg.sender]) {
                 revert CanntSellLockedToken();
             }
             sellAmount = balanceOf(msg.sender) - userLockedInBondingCurve[msg.sender];
+            if (sellAmount < 100000000) {
+                revert CanntSellLockedToken();
+            }
         }
+
         uint256 afterSupply = 0;
         afterSupply = bondingCurveSupply - sellAmount;
         
@@ -407,7 +420,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         lastClaimTime = startTime - 1;
 
         distributionEras.push(
-            Distribution({amount: 11574074074074074000, startTime: startTime, stopTime: startTime + 100 * 86400})
+            Distribution({amount: 11574074074074074000, startTime: startTime, stopTime: startTime + 100 * secondPerDay})
         );
 
         emit TokenListedToDex(pair);

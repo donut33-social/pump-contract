@@ -8,8 +8,16 @@ async function getEthBalance(user) {
   return ethers.provider.getBalance(user);
 }
 
+async function sendEth(sender, receiver, value) {
+  await sender.sendTransaction({
+    to: receiver.address,
+    value
+  })
+}
+
 
 module.exports = {
   parseAmount,
-  getEthBalance
+  getEthBalance,
+  sendEth
 }

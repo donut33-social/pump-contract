@@ -78,6 +78,11 @@ module.exports = {
         process.env.KEY
       ]
     },
+    enuls: {
+      url: process.env.ENULS,
+      chainId: 119,
+      accounts: [process.env.ENULS_KEY]
+    },
     bitlayer: {
       url: 'https://rpc.bitlayer.org',
       chainId: 200901,

@@ -278,17 +278,22 @@ describe("IPShare", function () {
             // donutFee,
             // subjectFee,
             // supply + ipshareReceived
-            await expect(buyIPShare(subject, alice, 0.01))
+            const b1 = await ipshare.getPrice(0, parseAmount(1000));
+            console.log(1, b1.toString()/1e18);
+
+            const b2 = await ipshare.getBuyAmountByValue(0, parseAmount(100000));
+            console.log(2, b2)
+            await expect(buyIPShare(subject, alice, 50))
                 .to.emit(ipshare, 'Trade')
                 .withArgs(
                     alice,
                     subject,
                     true,
-                    25736762993503133133n,
-                    10000000000000000n,
-                    250000000000000n,
-                    450000000000000n,
-                    35736762993503133133n
+                    101762250774378801158n,
+                    50000000000000000000n,
+                    1250000000000000000n,
+                    2250000000000000000n,
+                    111762250774378801158n
                 )
 
             await expect(sellIPShare(subject, alice, parseAmount(10)))
@@ -298,15 +303,15 @@ describe("IPShare", function () {
                     subject,
                     false,
                     10000000000000000000n,
-                    5956762079075731n,
-                    148919051976893n,
-                    268054293558407n,
-                    25736762993503133133n
+                    11406511523744680260n,
+                    285162788093617006n,
+                    513293018568510611n,
+                    101762250774378801158n
                 )
         })
 
         it('Can stake and unstake shares', async () => {
-            await buyIPShare(subject, alice, 0.1)
+            await buyIPShare(subject, alice, 500)
             await expect(ipshare.connect(alice).stake(subject, parseAmount(30)))
                 .to.emit(ipshare, 'Stake')
                 .withArgs(alice, subject, true, parseAmount(30), parseAmount(30))
@@ -327,12 +332,12 @@ describe("IPShare", function () {
         })
 
         it("Can capture value and claim reward", async () => {
-            await buyIPShare(subject, alice, 0.1)
+            await buyIPShare(subject, alice, 500)
             await ipshare.connect(alice).stake(subject, parseAmount(10))
             await expect(ipshare.valueCapture(subject, {
-                value: parseAmount(0.1)
+                value: parseAmount(500)
             })).to.emit(ipshare, 'ValueCaptured')
-            .withArgs(subject, owner, parseAmount(0.1))
+            .withArgs(subject, owner, parseAmount(500))
 
             const sbb = await ipshare.ipshareBalance(subject, subject)
             const abb = await ipshare.ipshareBalance(subject, alice)

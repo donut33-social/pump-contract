@@ -1,5 +1,5 @@
 const { ethers } = require("hardhat");
-const { parseAmount } = require("./helper");
+const { parseAmount, getEthBalance } = require("./helper");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const { UniswapV3Deployer } = require('./vendor/UniswapV3Deployer')
 
@@ -37,6 +37,23 @@ async function deployPumpFactory() {
 
     const Factory = await ethers.getContractFactory('Pump');
     const pump = await Factory.deploy(ipshare, donutFeeDestination);
+    await ethers.provider.send('hardhat_setBalance', [
+        owner.address,
+        '0x1000000000000000000000000'
+    ])
+    
+    await ethers.provider.send('hardhat_setBalance', [
+        alice.address,
+        '0x1000000000000000000000000'
+    ])
+    await ethers.provider.send('hardhat_setBalance', [
+        bob.address,
+        '0x1000000000000000000000000'
+    ])
+    await ethers.provider.send('hardhat_setBalance', [
+        carol.address,
+        '0x1000000000000000000000000'
+    ])
     return {
         ipshare,
         donut,

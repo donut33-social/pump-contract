@@ -15,7 +15,6 @@ contract Pump is Ownable, Nonces, IPump {
     uint256 private claimFee = 0.0001 ether;
     address private feeReceiver;
     address private claimSigner;
-    uint256 private lockTime = 3 * 86400;
     uint256[2] private feeRatio;  // 0: to tiptag; 1: to salesman
 
     mapping(address => bool) public createdTokens;
@@ -64,21 +63,12 @@ contract Pump is Ownable, Nonces, IPump {
         feeReceiver = _feeReceiver;
     }
 
-    function adminChangeLockTime(uint256 _lockTime) public onlyOwner {
-        emit LockTimeChanged(lockTime, _lockTime);
-        lockTime = _lockTime;
-    }
-
     function getIPShare() public override view returns (address) {
         return ipshare;
     }
 
     function getFeeReceiver() public override view returns (address) {
         return feeReceiver;
-    }
-
-    function getLockTime() public override view returns (uint256) {
-        return lockTime;
     }
 
     function getFeeRatio() public override view returns (uint256[2] memory) {

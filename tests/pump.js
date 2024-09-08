@@ -87,10 +87,10 @@ describe("Pump", function () {
     describe('Token before list', function () {
         let token;
         beforeEach(async () => {
+            console.log(1, weth.target, uniswapV2Factory.target, uniswapV2Router02.target)
             token = await pump.createToken('T1', { value: parseAmount(0.001) })
             token = await ethers.getContractAt('Token', '0x61c36a8d610163660e21a8b7359e1cac0c9133e1')
-            await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
-            // console.log(1, weth.target, uniswapV2Factory.target, uniswapV2Router02.target)
+            // await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
         })
 
         async function getBuyFeeData(buyEthAmount) {
@@ -131,6 +131,13 @@ describe("Pump", function () {
             await pump.createToken('T2', { value: parseAmount(0.101) })
             let token = await ethers.getContractAt('Token', '0x23db4a08f2272df049a4932a4cc3a6dc1002b33e')
             expect(await token.balanceOf(owner)).eq(buyAmount)
+
+            console.log(3, await token.balanceOf(bob))
+            await bob.sendTransaction({
+                to: token.target,
+                value: parseAmount(0.1)
+            })
+            console.log(4, await token.balanceOf(bob))
         })
 
         it("Can trade with bonding curve", async () => {
@@ -147,51 +154,7 @@ describe("Pump", function () {
             //     .to.changeTokenBalance(token, alice, parseAmount(-2000000))
         })
 
-        it("will revert when sell token if all of them locked", async () => {
-            const buyFund = parseAmount(0.0001)
-
-            const feeInfo = await getBuyFeeData(buyFund)
-            const buyAmount = await token.getBuyAmountByValue(feeInfo.buyFund)
-
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
-                value: buyFund
-            })).to.changeTokenBalance(token, alice, buyAmount)
-            
-            await expect(token.connect(alice).sellToken(parseAmount(10000000), 0, ethers.ZeroAddress, 0))
-                .to.revertedWithCustomError(token, 'CanntSellLockedToken');
-
-            await token.connect(bob).buyToken(parseAmount(500000000), ethers.ZeroAddress, 0, bob, {
-                value: parseAmount(0.000001)
-            })
-
-            await expect(token.connect(bob).sellToken(parseAmount(100000000), 0, ethers.ZeroAddress, 0))
-            .to.revertedWithCustomError(token, 'CanntSellLockedToken');
-
-            await token.connect(carol).buyToken(parseAmount(500000000), ethers.ZeroAddress, 0, carol, {
-                value: parseAmount(1)
-            })
-
-            await expect(token.connect(alice).sellToken(parseAmount(100000000), 0, ethers.ZeroAddress, 0))
-            .to.revertedWithCustomError(token, 'CanntSellLockedToken');
-
-            await expect(token.connect(bob).sellToken(parseAmount(100000000), 0, ethers.ZeroAddress, 0))
-            .to.revertedWithCustomError(token, 'CanntSellLockedToken');
-
-            await expect(token.connect(carol).sellToken(parseAmount(10000000), 0, ethers.ZeroAddress, 0))
-            .to.changeTokenBalance(token, carol.address, -parseAmount(10000000));
-        })
-
-        it("Cannt sell the locked when buying in creation", async () => {
-            await pump.createToken('T2', { value: parseAmount(0.0015) })
-            let token = await ethers.getContractAt('Token', '0x23db4a08f2272df049a4932a4cc3a6dc1002b33e')
-            
-            expect(await token.balanceOf(owner)).eq(25615139970160800620417500n);
-
-            await expect(token.sellToken(parseAmount(50000000), 0, ethers.ZeroAddress, 0))
-            .to.revertedWithCustomError(token, 'CanntSellLockedToken');
-        })
-
-        it("Can sell if the token not locked", async () => {
+        it("Can sell the token", async () => {
             const buyFund = await token.getBuyPriceAfterFee(parseAmount(100000000));
             await token.buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, bob, {
                 value: buyFund
@@ -204,24 +167,7 @@ describe("Pump", function () {
                 .to.changeTokenBalance(token, alice, -parseAmount(10000000))
             
             await expect(token.connect(bob).sellToken(parseAmount(10000000), 0, ethers.ZeroAddress, 0))
-                .to.revertedWithCustomError(token, 'CanntSellLockedToken')
-        })
-
-        it('Can sell the unlocked token if give a larger sell number', async () => {
-            const buyFund = await token.getBuyPriceAfterFee(parseAmount(100000000));
-            await token.buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, bob, {
-                value: buyFund
-            });
-            const moreFund = await token.getBuyPriceAfterFee(parseAmount(10000000));
-            await token.connect(bob).buyToken(parseAmount(10000000), ethers.ZeroAddress, 0, bob, {
-                value: moreFund
-            });
-            const balance = await token.balanceOf(bob);
-            const cansellAmount = balance - parseAmount(100000000)
-            // expect sell 200000, but only can sell 100000
-            const willReceiveBtc = await token.getSellPriceAfterFee(cansellAmount);
-            await expect(token.connect(bob).sellToken(parseAmount(20000000), 0, ethers.ZeroAddress, 0))
-                .to.changeTokenBalance(token, bob, -cansellAmount)
+                .to.changeTokenBalance(token, bob, -parseAmount(10000000))
         })
 
 
@@ -238,7 +184,7 @@ describe("Pump", function () {
             expect(await token.balanceOf(alice)).eq(0);
             
             await expect(token.connect(bob).sellToken(parseAmount(100), 0, ethers.ZeroAddress, 0))
-                .to.changeTokenBalance(token, bob, parseAmount(-100))
+                .to.changeTokenBalance(token, bob, -parseAmount(100))
         })
 
         it("Check event", async () => {
@@ -262,12 +208,36 @@ describe("Pump", function () {
             //     .withArgs(alice, bob.address, false, sellAmount, sellFeeInfo.sellFund, sellFeeInfo.tipTapFee, sellFeeInfo.ipshareFee)
         })
 
-        it("Cannt trade with other users", async () => {
+        it("Can trade with other users", async () => {
             await token.connect(bob).buyToken(parseAmount(100000), ethers.ZeroAddress, 0, bob, {
                 value: parseAmount(0.1)
             })
             await expect(token.connect(bob).transfer(alice, parseAmount(100)))
-                .to.revertedWithCustomError(token, 'TokenNotListed');
+                .to.changeTokenBalances(token, [bob, alice], [-parseAmount(100), parseAmount(100)])
+        })
+
+        it("Can trade after transfer", async () => {
+            await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, ethers.ZeroAddress, {
+                value: parseAmount(0.1)
+            })
+            const balance = await token.balanceOf(alice);
+            await token.connect(alice).transfer(bob, parseAmount(40000000));
+            const receivea = await token.getSellPriceAfterFee(parseAmount(40000000));
+            await expect(token.connect(bob).sellToken(parseAmount(40000000), 0, ethers.ZeroAddress, 0))
+                .to.changeEtherBalance(bob, receivea + 2n);
+
+            const receiveb = await token.getSellPriceAfterFee(balance - parseAmount(40000000));
+            await expect(token.connect(alice).sellToken(balance - parseAmount(40000000), 0, ethers.ZeroAddress, 0))
+                .to.changeEtherBalance(alice, receiveb + 1n);
+            expect(await token.balanceOf(alice)).eq(0)
+            expect(await token.balanceOf(bob)).eq(0);
+            expect(await token.balanceOf(token)).eq(parseAmount(1000000000));
+
+            await expect(token.buyToken(parseAmount(700000000), ethers.ZeroAddress, 0, ethers.ZeroAddress, {
+                value: parseAmount(11)
+            })).to.changeTokenBalances(token, [owner.address, token.target], 
+                [parseAmount(700000000), -parseAmount(850000000)]
+            )
         })
 
         it("Can transfer back to token self", async () => {
@@ -275,7 +245,7 @@ describe("Pump", function () {
                 value: parseAmount(0.1)
             })
             await expect(token.connect(bob).transfer(token.target, parseAmount(10000)))
-                .to.changeTokenBalance(token, bob, parseAmount(-10000))
+                .to.changeTokenBalance(token, bob, -parseAmount(10000))
         })
 
         it("will revert if out of slippage", async () => {
@@ -381,6 +351,22 @@ describe("Pump", function () {
             // getCurrentRewardPerDay
             expect(await token.getCurrentRewardPerDay()).eq(0)
         })
+
+        it('Cannt make lp before list', async () => {
+            await token.buyToken(parseAmount(100000000), ethers.ZeroAddress, 0 ,ethers.ZeroAddress, {
+                value: parseAmount(1)
+            })
+            // router.addLiquidityETH{
+            //     value: address(this).balance
+            // }(address(this), liquidityAmount, 0, 0, BlackHole, block.timestamp + 300);
+            const router = await ethers.getContractAt('UniswapV2Router02', uniswapV2Router02);
+            await token.approve(router, parseAmount(10000000000))
+            await token.transfer(router, parseAmount(1000));
+            await expect(router.addLiquidityETH(token, parseAmount(100000), 0, 0, '0x000000000000000000000000000000000000dEaD', Math.floor(Date.now() / 1000) +300,
+                {
+                    value: parseAmount(10)
+                })).to.revertedWith('TransferHelper: TRANSFER_FROM_FAILED')
+        })
     })
 
     describe('Token list', function () {
@@ -389,7 +375,7 @@ describe("Pump", function () {
         beforeEach(async () => {
             token = await pump.createToken('T1', { value: parseAmount(0.001) })
             token = await ethers.getContractAt('Token', '0x61c36a8d610163660e21a8b7359e1cac0c9133e1')
-            await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
+            // await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
             feeRatio = await getFeeRatio();
             // console.log(1, weth.target, uniswapV2Factory.target, uniswapV2Router02.target)
         })
@@ -465,7 +451,7 @@ describe("Pump", function () {
         beforeEach(async () => {
             token = await pump.createToken('T1', { value: parseAmount(0.001) })
             token = await ethers.getContractAt('Token', '0x61c36a8d610163660e21a8b7359e1cac0c9133e1')
-            await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
+            // await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
             feeRatio = await getFeeRatio();
             await mine(86400);
             let buyAmount = parseAmount(710000000)
@@ -480,15 +466,25 @@ describe("Pump", function () {
                 .to.changeTokenBalances(token, [
                     alice, bob
                 ], [
-                    parseAmount(1000000), parseAmount(-1000000)
+                    parseAmount(1000000), -parseAmount(1000000)
                 ])
 
             await expect(token.connect(alice).transfer(carol, parseAmount(100000)))
                 .to.changeTokenBalances(token, [
                     alice, carol
                 ], [
-                    parseAmount(-100000), parseAmount(100000)
+                    -parseAmount(100000), parseAmount(100000)
                 ])
+        })
+
+        it("Can transfer eth to token contract", async () => {
+            await expect(alice.sendTransaction({
+                to: token.target,
+                value: parseAmount(1)
+            })).to.changeEtherBalances(
+                [token, alice],
+                [parseAmount(1), -parseAmount(1)]
+            )
         })
 
         it("Social curation reward calculation", async () => {
@@ -628,7 +624,7 @@ describe("Pump", function () {
                 [token, weth],
                 alice,
                 now
-            )).to.changeTokenBalance(token, bob, parseAmount(-100000));
+            )).to.changeTokenBalance(token, bob, -parseAmount(100000));
 
             // await expect(uniswapV2Router02.connect(bob).swapExactETHForTokens(
             //     parseAmount(1000),

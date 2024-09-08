@@ -20,8 +20,6 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     uint256 private constant socialDistributionAmount = 150000000 ether;
     uint256 private constant bondingCurveTotalAmount = 700000000 ether;
     uint256 private constant liquidityAmount = 150000000 ether;
-    // first 10000000 of 700000000 in bonding curve will be locked for 3 days
-    uint256 private constant totalLockedInBondingCurvePeriod = 100000000 ether;
 
     // social distribution - start util the list event
     struct Distribution {
@@ -32,15 +30,13 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     Distribution[] private distributionEras;
     // last claim to social pool time
     uint256 public lastClaimTime;
-    // pending reward in social pool to claim, init 500k to the bonding curve period
+    // pending reward in social pool to claim, init 50m to the bonding curve period
     uint256 public pendingClaimSocialRewards = 50000000 ether;
     // total claimed reward from social pool
     uint256 public totalClaimedSocialRewards;
-    uint256 public unlockTime;
 
     uint256 public startTime;
     mapping(uint256 => bool) public claimedOrder;
-    mapping(address => uint256) public userLockedInBondingCurve;
 
     // bonding curve
     uint256 public bondingCurveSupply;
@@ -53,6 +49,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     bool initialized = false;
 
     // dex
+    address private pair;
     address private WETH = 0x4200000000000000000000000000000000000006;
     address private uniswapV2Factory = 0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6;
     address private uniswapV2Router02 = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
@@ -79,7 +76,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         // before dawn of today
         startTime = block.timestamp - (block.timestamp % secondPerDay);
         lastClaimTime = startTime - 1;
-        unlockTime = block.timestamp + IPump(manager).getLockTime();
+
+        IUniswapV2Factory factory = IUniswapV2Factory(uniswapV2Factory);
+        pair = factory.createPair(address(this), WETH);
         _mint(address(this), socialDistributionAmount + bondingCurveTotalAmount + liquidityAmount);
     }
 
@@ -245,16 +244,6 @@ contract Token is IToken, ERC20, ReentrancyGuard {
                 revert CostFeeFail();
             }
 
-            // update user locked amount
-
-            if (block.timestamp < unlockTime && bondingCurveSupply < totalLockedInBondingCurvePeriod) {
-                uint256 needLock = totalLockedInBondingCurvePeriod - bondingCurveSupply;
-                if (tokenReceived < needLock) {
-                    needLock = tokenReceived;
-                }
-                userLockedInBondingCurve[receiver] += needLock;
-            }
-
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
             this.transfer(receiver, tokenReceived);
             bondingCurveSupply += tokenReceived;
@@ -270,12 +259,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         if (balanceOf(msg.sender) < sellAmount) {
             sellAmount = balanceOf(msg.sender);
         }
-        if (sellAmount == 0) revert InsufficientBalance();
-        if (block.timestamp < unlockTime && balanceOf(msg.sender) - sellAmount < userLockedInBondingCurve[msg.sender]) {
-            if (balanceOf(msg.sender) <= userLockedInBondingCurve[msg.sender]) {
-                revert CanntSellLockedToken();
-            }
-            sellAmount = balanceOf(msg.sender) - userLockedInBondingCurve[msg.sender];
+        
+        if (sellAmount < 100000000) {
+            revert DustIssue();
         }
         uint256 afterSupply = 0;
         afterSupply = bondingCurveSupply - sellAmount;
@@ -394,10 +380,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         _approve(address(this), uniswapV2Router02, liquidityAmount);
 
         // v2
-        // create pair
-        IUniswapV2Factory factory = IUniswapV2Factory(uniswapV2Factory);
         IUniswapV2Router02 router = IUniswapV2Router02(uniswapV2Router02);
-        address pair = factory.createPair(address(this), WETH);
 
         router.addLiquidityETH{
             value: address(this).balance
@@ -459,13 +442,10 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     // only listed token can do erc20 transfer functions
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
-        if (listed) {
-            return super._beforeTokenTransfer(from, to, amount);
-        } else if (from == address(this) || to == address(this) || from == address(0)) {
-            return super._beforeTokenTransfer(from, to, amount);
-        } else {
+        if  (!listed && to == pair && from != address(this)) {
             revert TokenNotListed();
         }
+        return super._beforeTokenTransfer(from, to, amount);
     }
 
     function _check(bytes32 data, bytes calldata sign) internal view returns (bool) {

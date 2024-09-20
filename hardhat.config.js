@@ -71,6 +71,13 @@ module.exports = {
     hardhat: {
       chainId: 97
     },
+    eth: {
+      url: process.env.ETH,
+      chainId: 1,
+      accounts: [
+        process.env.ETH_KEY
+      ]
+    },
     base: {
       url: process.env.BASE,
       chainId: 8453,

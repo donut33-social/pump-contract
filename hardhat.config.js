@@ -94,7 +94,7 @@ module.exports = {
     }
   },
   etherscan: {
-    apiKey: ''
+    apiKey: process.env.BASE_API
   },
   // flattenExporter: {
   //   src: "./contracts",

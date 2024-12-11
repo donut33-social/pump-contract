@@ -1,21 +1,32 @@
 const { ethers } = require('hardhat')
 
-const TokenContract = '0xb7471efd68791A26e2eC4422D9eABd9c2FFfD088'
+const TokenContract = '0x68503A15efD0D2F81D185a07d60Ed9Ac2a66B59e'
+const WETH = '0x4200000000000000000000000000000000000006';
+const wrapUni = '0x3AcC8fC1C54456864A191E5d12Af8A6BDeA57E8E';
 
 async function main() {
     try {
         const [signer] = await ethers.getSigners();
        
-        const token = await ethers.getContractAt('Token', TokenContract)
-        console.log(signer.address, await token.symbol(), await token.balanceOf(signer.address), await token.listed())
-        return;
-        const tx = await token.buyToken(ethers.parseEther('7000000'), ethers.ZeroAddress, 0, '0x2DaE3A44D3C6e9Ab402f6e616ce1d02c1836A6Ac', {
-            value: ethers.parseEther('0.03')
-        })
+        // const token = await ethers.getContractAt('Token', TokenContract)
+        // console.log(signer.address, await token.symbol(), await token.balanceOf(signer.address), await token.listed())
+        // return;
+        // const tx = await token.buyToken(ethers.parseEther('7000000'), ethers.ZeroAddress, 0, '0x2DaE3A44D3C6e9Ab402f6e616ce1d02c1836A6Ac', {
+        //     value: ethers.parseEther('0.03')
+        // })
+        // console.log(tx.hash)
+        // await tx.wait()
+        
+        const uni = await ethers.getContractAt('WrappedUniV2ForTipTag', wrapUni);
+        const tx = await uni.buyToken(ethers.ZeroAddress, 0, [WETH, TokenContract], signer.address, Math.floor(Date.now() / 1000) + 300, {
+            value: ethers.parseEther('0.0001')
+        });
         console.log(tx.hash)
-        await tx.wait()
+        await tx.wait();
+        console.log('ok')
     } catch (error) {
         try {
+            console.error(error)
             const errorInterface = errorCode;
             const iface = new ethers.Interface(errorInterface);
             console.log(33, error)

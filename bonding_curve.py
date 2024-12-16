@@ -8,7 +8,7 @@ import math
 a, b, x = symbols('a b x', real=True)
 
 # 定义方程 y = a - b / (x + 5 * 10^26)
-y = a * (x + b) ** 2
+y = ((x + b) ** 2) / a
 
 # 条件 1：x = 0 时，y = 1.5e9
 condition1 = Eq(y.subs(x, 0), 1_400_000_000)
@@ -20,20 +20,18 @@ condition2 = Eq(y.subs(x, 6.5 * 10**26), 20_000_000_000)
 solutions = solve([condition1, condition2], (a, b))
 
 print(solutions)
-a = solutions[0][0]
-b = solutions[0][1]
+a = solutions[1][0]
+b = solutions[1][1]
 
-# #  1500000000    0.000000001
-# # 24000000000   0.000000015
+# #  1400000000    0.0000000014
+# #  20 000 000 000    0.000000020
 # {a: 9/280000000000000000, b: -12000000000/7}
 
 # Define the function y = 177000000000/7 - 33300000000000000000000000000000000000/7/(x + 2 * 10^26)y = 177000000000/7 - 33300000000000000000000000000000000000/7/(x + 2 * 10^26)
 def y_function(x):
-    return a * (x + b) ** 2
+    return (x + b) ** 2 / a
 
-
-# 计算 y_function 从 0 到 7 * 10^26 的积分
-integral_result, error = quad(y_function, 0, 1 * 10**24)
+integral_result, error = quad(y_function, 0, 10**24)
 
 print(f"100万代币结果需要: {integral_result / 10**36}")
 
@@ -70,10 +68,10 @@ x_values = np.linspace(0, 6.5 * 10**26, 500)
 
 # Generate y values
 y_values = y_function(x_values)
-
+a * (x + b) ** 2
 # Plot the function
 plt.figure(figsize=(12, 6))
-plt.plot(x_values, y_values, label=r'$y = \frac{(x + 3 \times 10^{25})^2}{3.553629469 * 10^{44}} + 1568017334$', color='b')
+plt.plot(x_values, y_values, label=r'$y = \frac{(x + 2.33842833569031 \times 10^{26})^2}{3.90589077225667 * 10^{43}}$', color='b')
 plt.xlabel('x')
 plt.ylabel('y')
 plt.grid(True)

@@ -9,7 +9,8 @@
     "deploy-chapel": "hardhat run --network chapel scripts/deploy.js",
     "test": "hardhat test",
     "test-ipshare": "hardhat test tests/ipshare",
-    "test-pump": "hardhat test tests/pump"
+    "test-pump": "hardhat test tests/pump",
+    "test-bc": "hardhat test tests/bondingCurve"
   },
   "dependencies": {
     "@makerdao/multicall": "^0.12.0",

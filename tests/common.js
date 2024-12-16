@@ -37,6 +37,9 @@ async function deployPumpFactory() {
 
     const Factory = await ethers.getContractFactory('Pump');
     const pump = await Factory.deploy(ipshare, donutFeeDestination);
+
+    const bondingCurveFactory = await ethers.getContractFactory('BondingCurve');
+    const bondingCurve = await bondingCurveFactory.deploy(pump);
     return {
         ipshare,
         donut,
@@ -51,7 +54,8 @@ async function deployPumpFactory() {
         pump,
         weth,
         uniswapV2Factory,
-        uniswapV2Router02
+        uniswapV2Router02,
+        bondingCurve
     }
 }
 
@@ -88,12 +92,8 @@ async function deployIPShare() {
       };
 }
 
-async function deployCurationRewards() {
-
-}
 
 module.exports = {
     deployPumpFactory,
-    deployIPShare,
-    deployCurationRewards
+    deployIPShare
 }

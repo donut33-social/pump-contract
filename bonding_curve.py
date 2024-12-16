@@ -15,13 +15,15 @@ condition1 = Eq(y.subs(x, 0), 1_400_000_000)
 
 # 条件 2：x = 7e26 时，y = 2e10
 condition2 = Eq(y.subs(x, 6.5 * 10**26), 20_000_000_000)
+c = 0.619039208406223999 + 23.02585092994045684
+print(math.exp(c), 6.5e26 / 2.659260036932778586, 20_000_000_000 - 1_400_000_000)
 
 # 解方程组
 solutions = solve([condition1, condition2], (a, b))
 
 print(solutions)
-a = solutions[1][0]
-b = solutions[1][1]
+# a = solutions[1]
+# b = solutions[1]
 
 # #  1400000000    0.0000000014
 # #  20 000 000 000    0.000000020
@@ -29,7 +31,7 @@ b = solutions[1][1]
 
 # Define the function y = 177000000000/7 - 33300000000000000000000000000000000000/7/(x + 2 * 10^26)y = 177000000000/7 - 33300000000000000000000000000000000000/7/(x + 2 * 10^26)
 def y_function(x):
-    return (x + b) ** 2 / a
+    return 1_400_000_000 * math.exp(x / 2.4442889787856833e26)
 
 integral_result, error = quad(y_function, 0, 10**24)
 
@@ -67,11 +69,14 @@ print(f"6.5亿代币需要: {integral_result / 10**36}")
 x_values = np.linspace(0, 6.5 * 10**26, 500)
 
 # Generate y values
-y_values = y_function(x_values)
-a * (x + b) ** 2
+y_values = []
+for a in x_values:
+    y_values.append(y_function(a))
+# y_values = y_function(x_values)
+
 # Plot the function
 plt.figure(figsize=(12, 6))
-plt.plot(x_values, y_values, label=r'$y = \frac{(x + 2.33842833569031 \times 10^{26})^2}{3.90589077225667 * 10^{43}}$', color='b')
+plt.plot(x_values, y_values, label=r'$y = 1.4 \times 10^9 \times e^{\frac{x}{2.4442889787856833 \times 10^{26}}}$', color='b')
 plt.xlabel('x')
 plt.ylabel('y')
 plt.grid(True)

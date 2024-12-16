@@ -1,26 +1,27 @@
-from sympy import symbols, Eq, solve
+from sympy import symbols, Eq, solve, exp
 from scipy.integrate import quad
 import numpy as np
 import matplotlib.pyplot as plt
+import math
 
 # 定义变量
 a, b, x = symbols('a b x', real=True)
 
 # 定义方程 y = a - b / (x + 5 * 10^26)
-y = a * (x + 3 * 10 ** 25) ** 2 + b
+y = a * (x + b) ** 2
 
 # 条件 1：x = 0 时，y = 1.5e9
-condition1 = Eq(y.subs(x, 0), 1_600_000_000)
+condition1 = Eq(y.subs(x, 0), 1_400_000_000)
 
 # 条件 2：x = 7e26 时，y = 2e10
-condition2 = Eq(y.subs(x, 6.5 * 10**26), 18_000_000_000)
+condition2 = Eq(y.subs(x, 6.5 * 10**26), 20_000_000_000)
 
 # 解方程组
 solutions = solve([condition1, condition2], (a, b))
 
 print(solutions)
-a = solutions[a]
-b = solutions[b]
+a = solutions[0][0]
+b = solutions[0][1]
 
 # #  1500000000    0.000000001
 # # 24000000000   0.000000015
@@ -28,7 +29,7 @@ b = solutions[b]
 
 # Define the function y = 177000000000/7 - 33300000000000000000000000000000000000/7/(x + 2 * 10^26)y = 177000000000/7 - 33300000000000000000000000000000000000/7/(x + 2 * 10^26)
 def y_function(x):
-    return a * (x + 3 * 10 ** 25) ** 2 + b
+    return a * (x + b) ** 2
 
 
 # 计算 y_function 从 0 到 7 * 10^26 的积分

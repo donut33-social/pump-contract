@@ -9,16 +9,12 @@ interface IToken {
     error ClaimOrderExist();
     error InvalidSignature();
     error InvalidClaimAmount();
-    error InvalidClaimer();
     error OutOfSlippage();
     error InsufficientFund();
     error RefundFail();
     error CostFeeFail();
-    error CreateDexPoolFail();
     error DustIssue();
 
-    event ClaimDistributedReward(uint256 indexed timestamp, uint256 indexed amount);
-    event UserClaimReward(uint256 indexed orderId, address indexed user, uint256 indexed amount);
     event Trade(
         address indexed buyer,
         address indexed sellsman,
@@ -28,12 +24,6 @@ interface IToken {
         uint256 tiptagFee,
         uint256 sellsmanFee
     );
-    event TokenListedToDex(address indexed pair);
-
-    function initialize(
-        address manager_,
-        address ipshareSubject_,
-        string memory tick_
-    ) external;
     
+    function listed() external view returns (bool);
 }

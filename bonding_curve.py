@@ -5,25 +5,25 @@ import matplotlib.pyplot as plt
 import math
 
 # 定义变量
-a, b, x = symbols('a b x', real=True)
+a, x = symbols('a x', real=True)
 
 # 定义方程 y = a - b / (x + 5 * 10^26)
-y = ((x + b) ** 2) / a
+y = 1_400_000_000 * exp(x / a)
 
 # 条件 1：x = 0 时，y = 1.5e9
-condition1 = Eq(y.subs(x, 0), 1_400_000_000)
+# condition1 = Eq(y.subs(x, 0), 1_400_000_000)
 
 # 条件 2：x = 7e26 时，y = 2e10
 condition2 = Eq(y.subs(x, 6.5 * 10**26), 20_000_000_000)
-c = 0.619039208406223999 + 23.02585092994045684
-print(math.exp(c), 6.5e26 / 2.659260036932778586, 20_000_000_000 - 1_400_000_000)
 
 # 解方程组
-solutions = solve([condition1, condition2], (a, b))
+solutions = solve([condition2], (a))
 
 print(solutions)
 # a = solutions[1]
 # b = solutions[1]
+
+b = 2.4442889787856833e26
 
 # #  1400000000    0.0000000014
 # #  20 000 000 000    0.000000020
@@ -61,7 +61,7 @@ integral_result, error = quad(y_function, 0, 2 * 10**26)
 
 print(f"2亿代币需要: {integral_result / 10**36}")
 
-integral_result, error = quad(y_function, 0, 7 * 10**26)
+integral_result, error = quad(y_function, 0, 6.5 * 10**26)
 
 print(f"6.5亿代币需要: {integral_result / 10**36}")
 

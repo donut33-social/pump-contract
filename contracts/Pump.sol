@@ -4,22 +4,38 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Nonces.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./interface/IPump.sol";
 import "./Token.sol";
 import "./interface/IIPShare.sol";
+import "./interface/IBondingCurve.sol";
+import './UniswapV2/FullMath.sol';
+import './solady/src/utils/FixedPointMathLib.sol';
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // import "hardhat/console.sol";
 
-contract Pump is Ownable, Nonces, IPump {
+contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
     address private ipshare;
+    address private bondingCurve;
     uint256 public createFee = 0.001 ether;
     uint256 private claimFee = 0.0001 ether;
+    uint256 private divisor = 10000;
+    uint256 private secondPerDay = 86400;
     address private feeReceiver;
     address private claimSigner;
     uint256[2] private feeRatio;  // 0: to tiptag; 1: to salesman
+    address WETH = 0x4200000000000000000000000000000000000006;
 
     mapping(address => bool) public createdTokens;
     mapping(string => bool) public createdTicks;
+    mapping(address => uint256) public createdSaltsIndex;
 
+    // social distribution
+    uint256 private constant claimAmountPerSecond = 11.574074 ether;
+    mapping(address => uint256) public lastClaimTime;
+    mapping(address => mapping(uint256 => bool)) public claimedOrder;
+    mapping(address => uint256) public pendingClaimSocialRewards;
+    mapping(address => uint256) public totalClaimedSocialRewards;
     uint256 public totalTokens;
 
     constructor(address _ipshare, address _feeReceiver) Ownable(msg.sender) {
@@ -82,9 +98,17 @@ contract Pump is Ownable, Nonces, IPump {
         return claimSigner;
     }
 
-    function createToken(string calldata tick) public override payable returns (address) {
+    function getBondingCurve() public override view returns (address) {
+        return bondingCurve;
+    }
+
+    function createToken(string calldata tick, bytes32 salt) 
+        public payable override nonReentrant returns (address) {
         if (createdTicks[tick]) {
             revert TickHasBeenCreated();
+        }
+        if (uint256(salt) <= createdSaltsIndex[msg.sender]) {
+            revert SaltNotAvailable();
         }
         createdTicks[tick] = true;
 
@@ -104,21 +128,10 @@ contract Pump is Ownable, Nonces, IPump {
         if (!success) {
             revert InsufficientCreateFee();
         }
-        // if (msg.value > createFee) {
-        //     // refund asset
-        //    (bool success, ) = msg.sender.call{value: msg.value - createFee}("");
-        //     if (!success) {
-        //         revert RefundFail();
-        //     }
-        // }
 
-        // bytes32 salt;
-        // unchecked {
-        //     salt = keccak256(abi.encodePacked(tick, _useNonce(address(creator)), address(creator)));
-        // }
-
-        Token token = new Token();
+        Token token = new Token{salt: keccak256(abi.encode(msg.sender, salt))}();
         address instance  = address(token);
+        createdSaltsIndex[creator] = uint256(salt);
 
         // address instance = Clones.cloneDeterministic(tokenImplementation, salt);
         emit NewToken(tick, instance, creator);
@@ -128,6 +141,9 @@ contract Pump is Ownable, Nonces, IPump {
             creator,
             tick
         );
+
+        // before dawn of today
+        lastClaimTime[instance] = block.timestamp - (block.timestamp % secondPerDay) - 1;
 
         if (msg.value > createFee) {
             (bool success1, ) = instance.call{
@@ -148,5 +164,144 @@ contract Pump is Ownable, Nonces, IPump {
         totalTokens += 1;
         // console.log(instance);
         return instance;
+    }
+
+    function generateSalt(address deployer) public view returns (bytes32 salt, address token) {
+        uint256 currentIndex = createdSaltsIndex[deployer];
+        for (uint256 i = currentIndex + 1; ; i++) {
+            salt = bytes32(i);
+            bytes32 create2Salt = keccak256(abi.encode(deployer, salt));
+            bytes32 r = keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff),
+                            address(this),
+                            create2Salt,
+                            keccak256(
+                                abi.encodePacked(
+                                    type(Token).creationCode
+                                )
+                            )
+                        )
+                    );
+            token = address(uint160(uint256(r)));   
+            if (token < WETH) {
+                break;
+            }
+        }
+    }
+
+     /********************************** social distribution ********************************/
+    function calculateReward(uint256 from, uint256 to) public pure returns (uint256 rewards) {
+        if (from >= to) return 0;
+        return (to - from) * claimAmountPerSecond;
+    }
+
+    // set distributed rewards can be claimed by user
+    function claimPendingSocialRewards(address token) public {
+        // calculate rewards
+        uint256 rewards = calculateReward(lastClaimTime[token], block.timestamp);
+        if (rewards > 0) {
+            pendingClaimSocialRewards[token] += rewards;
+            lastClaimTime[token] = block.timestamp;
+            emit ClaimDistributedReward(token, block.timestamp, rewards);
+        }
+    }
+
+    function userClaim(address token, uint256 orderId, uint256 amount, bytes calldata signature) public payable {
+        if (!IToken(token).listed()) {
+            revert TokenNotListed();
+        }
+        if (claimedOrder[token][orderId]) {
+            revert ClaimOrderExist();
+        }
+        if (signature.length != 65) {
+            revert InvalidSignature();
+        }
+        if (token != address(this)) {
+            revert InvalidSignature();
+        }
+
+        if (msg.value < claimFee) {
+            revert CostFeeFail();
+        } else {
+            (bool success, ) = feeReceiver.call{value: claimFee}("");
+            if (!success) {
+                revert CostFeeFail();
+            }
+        }
+
+        bytes32 data = keccak256(abi.encodePacked(token, orderId, msg.sender, amount));
+        if (!_check(data, signature)) {
+            revert InvalidSignature();
+        }
+
+        if (pendingClaimSocialRewards[token] < amount) {
+            claimPendingSocialRewards(token);
+        }
+
+        if (pendingClaimSocialRewards[token] < amount) {
+            revert InvalidClaimAmount();
+        }
+
+        pendingClaimSocialRewards[token] -= amount;
+        totalClaimedSocialRewards[token] += amount;
+
+        claimedOrder[token][orderId] = true;
+
+        IERC20(token).transfer(msg.sender, amount);
+
+        emit UserClaimReward(token, orderId, msg.sender, amount);
+    }
+
+    function _check(bytes32 data, bytes calldata sign) internal view returns (bool) {
+        bytes32 r = abi.decode(sign[:32], (bytes32));
+        bytes32 s = abi.decode(sign[32:64], (bytes32));
+        uint8 v = uint8(sign[64]);
+        if (v < 27) {
+            if (v == 0 || v == 1) v += 27;
+        }
+        bytes memory profix = "\x19Ethereum Signed Message:\n32";
+        bytes32 info = keccak256(abi.encodePacked(profix, data));
+        address addr = ecrecover(info, v, r, s);
+        return addr == claimSigner;
+    }
+
+    /********************************** bonding curve ********************************/
+    
+     /**
+     * calculate the eth price when user buy amount tokens
+     */
+    function getPrice(uint256 supply, uint256 amount) public pure override returns (uint256) {
+        uint256 a = 1_400_000_000;
+        uint256 b = 2.4442889787856833e26;
+        uint256 x = FixedPointMathLib.mulWad(a, b);
+        uint256 e1 = uint256(FixedPointMathLib.expWad(int256((supply + amount) * 1e18 / b)));
+        uint256 e2 = uint256(FixedPointMathLib.expWad(int256((supply) * 1e18 / b)));
+        return FixedPointMathLib.mulWad(e1 - e2, x);
+    }
+    
+    function getSellPrice(uint256 supply, uint256 amount) public pure override returns (uint256) {
+        return getPrice(supply - amount, amount);
+    }
+
+    function getBuyPriceAfterFee(uint256 supply, uint256 amount) public view override returns (uint256) {
+        uint256 price = getPrice(supply, amount);
+        return ((price * divisor) / (divisor - feeRatio[0] - feeRatio[1]));
+    }
+
+    function getSellPriceAfterFee(uint256 supply, uint256 amount) public view override returns (uint256) {
+        uint256 price = getSellPrice(supply, amount);
+        return (price * (divisor - feeRatio[0] - feeRatio[1])) / divisor;
+    }
+
+    function getBuyAmountByValue(uint256 bondingCurveSupply, uint256 ethAmount) public pure override returns (uint256) {
+        uint256 a = 1_400_000_000;
+        uint256 b = 2.4442889787856833e26;
+        // b * ln(ethAmount / (a*b) + exp(bondingCurveSupply/b)) - bondingCurveSupply;
+        uint256 ab = FixedPointMathLib.mulWad(a, b);
+        uint256 sab = FixedPointMathLib.divWad(ethAmount, ab);
+        uint256 e = uint256(FixedPointMathLib.expWad(int256(bondingCurveSupply * 1e18 / b)));
+        uint256 ln = uint256(FixedPointMathLib.lnWad(int256(sab + e)));
+        return FixedPointMathLib.mulWad(b, ln) - bondingCurveSupply;
     }
 }

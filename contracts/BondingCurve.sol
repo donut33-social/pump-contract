@@ -2,6 +2,7 @@
 pragma solidity 0.8.20;
 import './UniswapV2/FullMath.sol';
 import './interface/IPump.sol';
+import './solady/src/utils/FixedPointMathLib.sol';
 
 // 2.56023544514595e44, 2.33842833569031e+26
 // y = (1 / a) * (x + b) ^ 2
@@ -11,7 +12,6 @@ import './interface/IPump.sol';
 // total sell 650000000 tokens in bonding curve pool
 contract BondingCurve {
     uint256 private divisor = 10000;
-    uint256 private bondingCurveTotalAmount = 650000000 ether;
     address private manager;
 
     constructor(address _manager) {
@@ -22,11 +22,17 @@ contract BondingCurve {
      * calculate the eth price when user buy amount tokens
      */
     function getPrice(uint256 supply, uint256 amount) public pure returns (uint256) {
-        uint256 a = 3.90589077225667e43;
-        uint256 b = 2.33842833569031e26;
-        supply = supply + b;
-        uint256 m = amount ** 2 + amount * 3 * supply + 3 * supply * supply;
-        return FullMath.mulDiv(m / 1e8 , amount , 3e10 * a);
+        uint256 a = FullMath.mulDiv(4.546377500541374 ether, 2 ** 192, 200000000 ether);
+        uint256 sqrtPrice = FixedPointMathLib.sqrt(a);
+        int256 tick = FixedPointMathLib.lnWad(int256(sqrtPrice * 1e18)) 
+        / FixedPointMathLib.lnWad(int256(1.0001 * 1e18));
+        return sqrtPrice;
+        // uint256 a = 1_400_000_000;
+        // uint256 b = 2.4442889787856833e26;
+        // uint256 x = FixedPointMathLib.mulWad(a, b);
+        // uint256 e1 = uint256(FixedPointMathLib.expWad(int256((supply + amount) * 1e18 / b)));
+        // uint256 e2 = uint256(FixedPointMathLib.expWad(int256((supply) * 1e18 / b)));
+        // return FixedPointMathLib.mulWad(e1 - e2, x);
     }
     
     function getSellPrice(uint256 supply, uint256 amount) public pure returns (uint256) {
@@ -45,40 +51,14 @@ contract BondingCurve {
         return (price * (divisor - feeRatio[0] - feeRatio[1])) / divisor;
     }
 
-    function _getBuyAmountByValue(uint256 bondingCurveSupply, uint256 ethAmount) private pure returns (uint256) {
-        uint256 a = 2.56023544514595 * (10 ** 44);
-        uint256 b = 2.33842833569031 * (10 ** 26);
-        return floorCbrt(ethAmount * a + 
-                (bondingCurveSupply + b) ** 2 / 1e18 * (bondingCurveSupply + b) / 1e18) * 1e12
-                 - bondingCurveSupply - 2 * b;
-    }
-
-    // function _getBuyAmountByValue(uint256 bondingCurveSupply, uint256 ethAmount) private view returns (uint256) {
-    //     return (floorCbrt(ethAmount * a * 3e36 + 
-    //             bondingCurveSupply ** 3) - bondingCurveSupply) 
-    //             - b;
-    // }
-
-    function getBuyAmountByValue(uint256 bondingCurveSupply, uint256 ethAmount) public view returns (uint256) {
-        uint256 amount = _getBuyAmountByValue(bondingCurveSupply, ethAmount);
-        if (amount + bondingCurveSupply > bondingCurveTotalAmount) {
-            return bondingCurveTotalAmount - bondingCurveSupply;
-        }
-        return amount;
-    }
-
-    function floorCbrt(uint256 n) internal pure returns (uint256) {
-        unchecked {
-            uint256 x = 0;
-            for (uint256 y = 1 << 255; y > 0; y >>= 3) {
-                x <<= 1;
-                uint256 z = 3 * x * (x + 1) + 1;
-                if (n / y >= z) {
-                    n -= y * z;
-                    x += 1;
-                }
-            }
-            return x;
-        }
+    function getBuyAmountByValue(uint256 bondingCurveSupply, uint256 ethAmount) public pure returns (uint256) {
+        uint256 a = 1_400_000_000;
+        uint256 b = 2.4442889787856833e26;
+        // b * ln(ethAmount / (a*b) + exp(bondingCurveSupply/b)) - bondingCurveSupply;
+        uint256 ab = FixedPointMathLib.mulWad(a, b);
+        uint256 sab = FixedPointMathLib.divWad(ethAmount, ab);
+        uint256 e = uint256(FixedPointMathLib.expWad(int256(bondingCurveSupply * 1e18 / b)));
+        uint256 ln = uint256(FixedPointMathLib.lnWad(int256(sab + e)));
+        return FixedPointMathLib.mulWad(b, ln) - bondingCurveSupply;
     }
 }

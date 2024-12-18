@@ -32,11 +32,11 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
 
     mapping(address => bool) public createdTokens;
     mapping(string => bool) public createdTicks;
-    mapping(address => uint256) public createdSaltsIndex;
+    mapping(address => uint256) private createdSaltsIndex;
 
     // social distribution
     uint256 private constant claimAmountPerSecond = 11.574074 ether;
-    mapping(address => uint256) public lastClaimTime;
+    mapping(address => uint256) private lastClaimTime;
     mapping(address => mapping(uint256 => bool)) public claimedOrder;
     mapping(address => uint256) public pendingClaimSocialRewards;
     mapping(address => uint256) public totalClaimedSocialRewards;

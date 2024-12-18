@@ -22,7 +22,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     uint256 private constant bondingCurveTotalAmount = 650000000 ether;
     uint256 private constant liquidityAmount = 200000000 ether;
 
-    uint256 private bondingCurveSupply = 0;
+    uint256 public bondingCurveSupply = 0;
 
     // last claim to social pool time
     uint256 public lastClaimTime;
@@ -42,7 +42,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     bool initialized = false;
 
     // dex
-    address private pair;
+    address public pair;
     // 200000000 token and 4.546377500541374 ether price for uni v3
     uint160 private sqrtPriceX96 = 11945307467447461835399701;
 
@@ -130,7 +130,6 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             emit Trade(receiver, sellsman, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
             // build liquidity pool
             _makeLiquidityPool();
-            listed = true;
             return actualAmount;
         } else {
             if (
@@ -216,7 +215,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     /********************************** to dex ********************************/
     function _makeLiquidityPool() private {
-        
+        listed = true;
     }
 
     /********************************** erc20 function ********************************/

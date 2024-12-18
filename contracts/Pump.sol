@@ -24,7 +24,11 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
     address private feeReceiver;
     address private claimSigner;
     uint256[2] private feeRatio;  // 0: to tiptag; 1: to salesman
-    address WETH = 0x4200000000000000000000000000000000000006;
+    address private WETH = 0x4200000000000000000000000000000000000006;
+    address private uniswapV3Factory 
+        = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
+    address private positionManager 
+        = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1;
 
     mapping(address => bool) public createdTokens;
     mapping(string => bool) public createdTicks;
@@ -38,11 +42,20 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
     mapping(address => uint256) public totalClaimedSocialRewards;
     uint256 public totalTokens;
 
-    constructor(address _ipshare, address _feeReceiver) Ownable(msg.sender) {
+    constructor(
+        address _ipshare, 
+        address _feeReceiver, 
+        address _weth, 
+        address _positionManager, 
+        address _uniswapV3Factory
+    ) Ownable(msg.sender) {
         ipshare = _ipshare;
         feeReceiver = _feeReceiver;
         feeRatio = [100, 100];
         claimSigner = 0x78C2aF38330C5b41Ae7946A313e43cDCEEaf8611;
+        WETH = _weth;
+        positionManager = _positionManager;
+        uniswapV3Factory = _uniswapV3Factory;
     }
 
     receive() external payable {}
@@ -102,7 +115,19 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
         return bondingCurve;
     }
 
-    function createToken(string calldata tick, bytes32 salt) 
+    function getNonfungiblePositionManager() public override view returns (address) {
+        return positionManager;
+    }
+
+    function getUniswapV3Factory() public override view returns (address) {
+        return uniswapV3Factory;
+    }
+
+    function getWETH() public override view returns (address) {
+        return WETH;
+    }
+
+    function createToken(string calldata tick, bytes32 salt)
         public payable override nonReentrant returns (address) {
         if (createdTicks[tick]) {
             revert TickHasBeenCreated();

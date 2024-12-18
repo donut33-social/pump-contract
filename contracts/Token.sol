@@ -43,15 +43,8 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     // dex
     address private pair;
-    address private WETH = 0x4200000000000000000000000000000000000006;
     // 200000000 token and 4.546377500541374 ether price for uni v3
     uint160 private sqrtPriceX96 = 11945307467447461835399701;
-
-    IUniswapV3Factory public uniswapV3Factory 
-        = IUniswapV3Factory(0x33128a8fC17869897dcE68Ed026d694621f6FDfD);
-        
-    INonfungiblePositionManager public positionManager 
-        = INonfungiblePositionManager(0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1);
 
     receive() external payable {
         if (!listed) {
@@ -59,10 +52,15 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         }
     }
 
+    function getIPShare() external view returns (address) {
+        return ipshareSubject;
+    }
+
     function initialize(
         address manager_, 
-        address ipshareSubject_, 
-        string memory tick) public {
+        address ipshareSubject_,
+        string memory tick) public 
+    {
         if (initialized) {
             revert TokenInitialized();
         }
@@ -76,7 +74,8 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         _mint(address(manager), socialDistributionAmount);
 
         // create v3 pool and set price
-        pair = uniswapV3Factory.createPool(address(this), WETH, 10000);
+        pair = IUniswapV3Factory(IPump(manager).getUniswapV3Factory())
+            .createPool(address(this), IPump(manager).getWETH(), 10000);
         IUniswapV3Factory(pair).initialize(sqrtPriceX96);
     }
 
@@ -241,7 +240,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         if (listed) {
             return super.balanceOf(account);
         }
-        if (account == pair || account == address(positionManager)) {
+        if (account == pair || account == IPump(manager).getNonfungiblePositionManager()) {
             revert TokenNotListed();
         }
         return super.balanceOf(account);

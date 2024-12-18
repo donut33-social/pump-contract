@@ -33,6 +33,9 @@ interface IPump {
     function createToken(string calldata tick, bytes32 salt) external payable returns (address);
     function getBondingCurve() external view returns (address);
     function getClaimSigner() external view returns (address);
+    function getNonfungiblePositionManager() external view returns (address);
+    function getUniswapV3Factory() external view returns (address);
+    function getWETH() external view returns (address);
 
     event ClaimDistributedReward(address indexed token, uint256 indexed timestamp, uint256 indexed amount);
     event UserClaimReward(address indexed token, uint256 orderId, address indexed user, uint256 indexed amount);

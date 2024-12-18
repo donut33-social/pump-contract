@@ -9,6 +9,7 @@ const artifacts = {
   NonfungibleTokenPositionDescriptor: require("@uniswap/v3-periphery/artifacts/contracts/NonfungibleTokenPositionDescriptor.sol/NonfungibleTokenPositionDescriptor.json"),
   NonfungiblePositionManager: require("@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json"),
   WETH9,
+  UniswapV3Pool: require("@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json"),
 };
 
 // TODO: Should replace these with the proper typechain output.
@@ -42,12 +43,12 @@ class UniswapV3Deployer {
     console.log(36, positionManager.target) //0x0165878A594ca255338adfa4d48449f69242Eb8F
 
     return {
-      weth9,
-      factory,
-      router,
-      nftDescriptorLibrary,
-      // positionDescriptor,
-      positionManager,
+      weth9: weth9,
+      factory: factory,
+      router: router,
+      nftDescriptorLibrary: nftDescriptorLibrary,
+      positionManager: positionManager,
+      artifacts
     };
   }
 

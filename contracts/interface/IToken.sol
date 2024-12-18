@@ -26,4 +26,6 @@ interface IToken {
     );
     
     function listed() external view returns (bool);
+
+    function getIPShare() external view returns (address);
 }

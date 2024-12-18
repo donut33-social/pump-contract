@@ -1,7 +1,7 @@
 const { ethers } = require("hardhat");
 const { parseAmount } = require("./helper");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
-const { UniswapV3Deployer } = require('./vendor/UniswapV3Deployer')
+const { UniswapV3Deployer } = require("./vendor/UniswapV3Deployer");
 
 async function deployPumpFactory() {
     const {
@@ -16,30 +16,27 @@ async function deployPumpFactory() {
         dexFeeDestination,
         subject
      } = await deployIPShare()
+
+    const res = await UniswapV3Deployer.deploy(owner);
      
-       // deploy weth
-    const wethFactory = await ethers.getContractFactory("WETH9");
-    const weth = await wethFactory.deploy();
+    //    // deploy weth
+    // const wethFactory = await ethers.getContractFactory("WETH9");
+    // const weth = await wethFactory.deploy();
 
-        // deploy dex
-    const UniswapV2Factory = await ethers.getContractFactory("UniswapV2Factory");
-    const uniswapV2Factory = await UniswapV2Factory.deploy(dexFeeDestination);
-    await uniswapV2Factory.connect(dexFeeDestination).setFeeTo(dexFeeDestination);
-
-    let initCode = await uniswapV2Factory.pairCodeHash();
-    // need set this code to pairFor(function) of UniswapV2Library
-    initCode = initCode.replace('0x', '');
-    console.log('init code:', initCode);
-
-    // deploy router
-    let routerFactory = await ethers.getContractFactory("UniswapV2Router02");
-    let uniswapV2Router02 = await routerFactory.deploy(uniswapV2Factory, weth);
+    //     // deploy dex
+    // const UniswapV3Factory = await ethers.getContractFactory("UniswapV3Factory");
+    // const uniswapV3Factory = await UniswapV3Factory.deploy();
+    // uniswapV3Factory.deployed();
+    
+    // const PositionManager = await ethers.getContractFactory("NonfungiblePositionManager");
+    // const positionManager = await PositionManager.deploy(uniswapV3Factory, weth);
+    // positionManager.deployed();
 
     const Factory = await ethers.getContractFactory('Pump');
-    const pump = await Factory.deploy(ipshare, donutFeeDestination);
+    const pump = await Factory.deploy(ipshare, donutFeeDestination, res.weth9, res.positionManager, res.factory);
 
-    const bondingCurveFactory = await ethers.getContractFactory('BondingCurve');
-    const bondingCurve = await bondingCurveFactory.deploy(pump);
+    const TestERC20 = await ethers.getContractFactory('TestERC20');
+    const testERC20 = await TestERC20.deploy();
     return {
         ipshare,
         donut,
@@ -52,10 +49,11 @@ async function deployPumpFactory() {
         dexFeeDestination,
         subject,
         pump,
-        weth,
-        uniswapV2Factory,
-        uniswapV2Router02,
-        bondingCurve
+        weth: res.weth9,
+        uniswapV3Factory: res.factory,
+        positionManager: res.positionManager,
+        testERC20,
+        artifacts: res.artifacts
     }
 }
 

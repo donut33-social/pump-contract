@@ -1,4 +1,4 @@
-const { Signer, Contract, ContractFactory } = require("ethers");
+const { Signer, Contract, ContractFactory, utils } = require("ethers");
 const { linkLibraries } = require("./linkLibraries")
 const WETH9 = require("./WETH9.json");
 
@@ -29,16 +29,16 @@ class UniswapV3Deployer {
     console.log(33, router.target) //0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
     const nftDescriptorLibrary = await deployer.deployNFTDescriptorLibrary();
     console.log(34, nftDescriptorLibrary.target) //0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
-    // const positionDescriptor = await deployer.deployPositionDescriptor(
-    //   nftDescriptorLibrary.target,
-    //   weth9.target
-    // );
-    // console.log(35, positionDescriptor.target)
+    const positionDescriptor = await deployer.deployPositionDescriptor(
+      nftDescriptorLibrary.target,
+      weth9.target
+    );
+    console.log(35, positionDescriptor.target)
     const positionManager = await deployer.deployNonfungiblePositionManager(
       factory.target,
       weth9.target,
-      '0xa9dD0d1DEd484e678039699D4eF34b6F8060a6C8'
-      // positionDescriptor.target
+      // '0xa9dD0d1DEd484e678039699D4eF34b6F8060a6C8'
+      positionDescriptor.target
     );
     console.log(36, positionManager.target) //0x0165878A594ca255338adfa4d48449f69242Eb8F
 
@@ -98,6 +98,12 @@ class UniswapV3Deployer {
     nftDescriptorLibraryAddress,
     weth9Address
   ) {
+    const NFTDescriptor = await ContractFactory(artifacts.NFTDescriptor.abi, artifacts.NFTDescriptor.bytecode, {
+      libraries: {
+        NFTDescriptorLibrary: nftDescriptorLibraryAddress,
+      }
+    });
+
     const linkedBytecode = linkLibraries(
       {
         bytecode: artifacts.NonfungibleTokenPositionDescriptor.bytecode,
@@ -120,7 +126,7 @@ class UniswapV3Deployer {
     return (await this.deployContract(
       artifacts.NonfungibleTokenPositionDescriptor.abi,
       linkedBytecode,
-      [weth9Address],
+      [weth9Address, ethers.encodeBytes32String('ETH')],
       this.deployer
     ));
   }

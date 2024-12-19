@@ -2,6 +2,7 @@
 pragma solidity 0.8.20;
 
 import {ERC20} from "./solady/src/tokens/ERC20.sol";
+import {IWETH} from "./interface/IWETH.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interface/IToken.sol";
@@ -11,6 +12,7 @@ import "./interface/IUniswapV2Router02.sol";
 import "./interface/IUniswapV3Factory.sol";
 import "./interface/IBondingCurve.sol";
 import "./interface/INonfungiblePositionManager.sol";
+import "hardhat/console.sol";
 
 contract Token is IToken, ERC20, ReentrancyGuard {
     string private _name;
@@ -164,6 +166,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         if (sellAmount < 100000000) {
             revert DustIssue();
         }
+        
         uint256 afterSupply = 0;
         afterSupply = bondingCurveSupply - sellAmount;
         
@@ -216,6 +219,35 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     /********************************** to dex ********************************/
     function _makeLiquidityPool() private {
         listed = true;
+        uint256 tokenBalance = balanceOf(address(this));
+        uint256 ethBalance = address(this).balance;
+        address positionManager = IPump(manager).getNonfungiblePositionManager();
+        IWETH weth = IWETH(IPump(manager).getWETH());
+        weth.deposit{value: ethBalance}();
+        this.approve(positionManager, tokenBalance);
+        weth.approve(positionManager, ethBalance);
+        
+        INonfungiblePositionManager.MintParams
+            memory mintParams = INonfungiblePositionManager.MintParams(
+                address(this),
+                IPump(manager).getWETH(),
+                10000,
+                -887272,
+                887272,
+                tokenBalance,
+                ethBalance,
+                0,
+                0,
+                address(this),
+                block.timestamp
+            );
+
+        (uint256 tokenId, , uint256 amount0, uint256 amount1) 
+            = INonfungiblePositionManager(IPump(manager).getNonfungiblePositionManager())
+            .mint(mintParams);
+        console.log("tokenId", tokenId);
+        console.log("amount0", amount0);
+        console.log("amount1", amount1);
     }
 
     /********************************** erc20 function ********************************/

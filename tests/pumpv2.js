@@ -78,6 +78,10 @@ describe("Pump", function () {
             expect(poolAddress).to.not.be.null;
             pool = await ethers.getContractAt(artifacts.UniswapV3Pool.abi, poolAddress);
             await pool.initialize(124523523544);
+
+            const manager = await ethers.getContractAt(artifacts.NonfungiblePositionManager.abi, positionManager);
+            const position = await manager.positions(1);
+            console.log("position", position);
         })
     })
 
@@ -334,7 +338,9 @@ describe("Pump", function () {
                 await positionManager.mint(MintParams)
             } catch (error) {
                 console.error('cannt provide liquidity before list')
-            }
+            }   
+            // await expect(positionManager.mint(MintParams))
+            //     .to.be.revertedWithCustomError(token, 'TokenNotListed')
         })
     })
 
@@ -383,14 +389,35 @@ describe("Pump", function () {
         }
 
         it("Will refund ETH when use buy the tail token", async () => {
+            const bondingTotalAmount = parseAmount(650000000);
+            const bondingCurveSupply = await getBondingCurveSupply()
+            const gb = await pump.getPrice(bondingCurveSupply, bondingTotalAmount - bondingCurveSupply);
+            await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, alice, {
+                value: parseAmount(0.1)
+            })
+            const bondingCurveSupply2 = await getBondingCurveSupply()
+            const gb2 = await pump.getBuyPriceAfterFee(bondingCurveSupply2, bondingTotalAmount - bondingCurveSupply2);
+            const buyFund = parseAmount(6)
+            
+            await expect(token.connect(bob).buyToken(bondingTotalAmount, ethers.ZeroAddress, 0, alice, {
+                value: buyFund
+            })).to.changeEtherBalance(bob, -gb2);
+        })
+
+        it("The last buyer will make the liquidity pool too", async () => {
 
         })
 
-        it("The last buyer will make the liquidity pool too", async () => {})
-
         it('will emit list event with the last buy', async () => {})
 
-        it('The list price is correct', async () => {})
+        it('The list price is correct', async () => {
+            const pool = await token.pair();
+            console.log({pool})
+            const poolContract = await ethers.getContractAt(artifacts.UniswapV3Pool.abi, pool);
+            let  price = await poolContract.slot0();
+            price = (Number(price[0]) / 2**96) ** 2
+            expect(price).eq(2.2731887502706873e-8)
+        })
 
         it('List will cost most of the token in contract', async () => {})
     })

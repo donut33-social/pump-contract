@@ -41,8 +41,8 @@ contract IPShareevents {
 contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare {
     address private self;
 
-    // donut contract
-    address public donut;
+    // theFan contract
+    address public theFan;
     // Subject => user => balance
     mapping(address => mapping(address => uint256)) private _ipshareBalance;
     // Subject => supply
@@ -53,15 +53,15 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
 
     uint256 minHoldShares = 10 ether;
 
-    // buy and sell c-share will cost operator fee to the author and donut, 
+    // buy and sell c-share will cost operator fee to the author and theFan, 
     // the percent is a number from 0 - 10000, ex. 5000 means 50%
     uint256 public subjectFeePercent;
-    uint256 public donutFeePercent;
-    uint256 public createFee;
-    // address that receive donut fee
-    address public donutFeeDestination;
+    uint256 public theFanFeePercent;
+    uint256 public createFee = 0.001 ether;
+    // address that receive theFan fee
+    address public theFanFeeDestination;
 
-    bool public startTrade = false;
+    bool public startTrade = true;
     bool public startFM3D = false;
 
     // ================================ stake =================================
@@ -86,10 +86,10 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     mapping(address => uint256) private ipshareAcc;
 
     // ================================ Modifiers =================================
-    // only Donut can call buy function, donut contract contains fomo 3d game
-    modifier onlyDonut() {
-        if (startFM3D && donut != msg.sender) {
-            revert OnlyDonut();
+    // only theFan can call buy function, theFan contract contains fomo 3d game
+    modifier onlyTheFan() {
+        if (startFM3D && theFan != msg.sender) {
+            revert OnlyTheFan();
         }
         _;
     }
@@ -114,9 +114,8 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         self = address(this);
         // initial the fee as 4.5% 2.5%
         subjectFeePercent = 450;
-        donutFeePercent = 250;
-        createFee = 0;
-        donutFeeDestination = 0x06Deb72b2e156Ddd383651aC3d2dAb5892d9c048;
+        theFanFeePercent = 250;
+        theFanFeeDestination = 0xd04E0c2c2Fc15b39Cfa4e0b15C22a54910D72BC9;
     }
 
     // 
@@ -133,19 +132,19 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     }
 
     // ================================ admin function =================================
-    function adminSetDonut(address _donut) public onlyOwner {
-        donut = _donut;
+    function adminSetTheFan(address _theFan) public onlyOwner {
+        theFan = _theFan;
     }
 
-    function adminStartTrade() public onlyOwner() {
-        startTrade = true;
+    function adminToggleTrade() public onlyOwner() {
+        startTrade = !startTrade;
     }
 
-    function adminStartFM3D() public onlyOwner() {
-        if (address(donut) == address(0)) {
-            revert DonutNotSet();
+    function adminToggleFM3D() public onlyOwner() {
+        if (address(theFan) == address(0)) {
+            revert TheFanNotSet();
         }
-        startFM3D = true;
+        startFM3D = !startFM3D;
     }
 
     function adminSetSubjectFeePercent(
@@ -157,19 +156,19 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         subjectFeePercent = _subjectFeePercent;
     }
 
-    function adminSetDonutFeePercent(
-        uint256 _donutFeePercent
+    function adminSetTheFanFeePercent(
+        uint256 _theFanFeePercent
     ) public onlyOwner {
-        if (_donutFeePercent >= 1000) {
+        if (_theFanFeePercent >= 1000) {
             revert FeePercentIsTooLarge();
         }
-        donutFeePercent = _donutFeePercent;
+        theFanFeePercent = _theFanFeePercent;
     }
 
-    function adminSetDonutFeeDestination(
-        address _donutFeeDestination
+    function adminSetTheFanFeeDestination(
+        address _theFanFeeDestination
     ) public onlyOwner {
-        donutFeeDestination = _donutFeeDestination;
+        theFanFeeDestination = _theFanFeeDestination;
     }
 
     function adminSetCreateFee(
@@ -182,20 +181,20 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     }
 
     function pause() public onlyOwner {
-        if (!Pausable(donut).paused()) {
+        if (!Pausable(theFan).paused()) {
             revert CanntPauseNow();
         }
         _pause();
     }
 
     function unpause() public onlyOwner {
-        if (Pausable(donut).paused()) {
+        if (Pausable(theFan).paused()) {
             revert CanntUnpauseNow();
         }
         _unpause();
     }
 
-    // need receive eth from donut and ft contracts
+    // need receive eth from theFan and ft contracts
     receive() external payable {
         
     }
@@ -204,11 +203,13 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     // only ft user can create his c share
     // creation need no fee
     /**
-     * @dev only ft user can create his c share
-     * creation need no fee
+     * @dev only 
+     * @param subject the subject of the ipshare
+     * @param amount the initial ipshare amount except minHoldShares free share
      */
     function createShare(
-        address subject
+        address subject,
+        uint256 amount
     ) public payable override nonReentrant whenNotPaused {
         if (subject == address(0)) {
             subject = tx.origin;
@@ -217,38 +218,24 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         if (_ipshareCreated[subject]) {
             revert IPShareAlreadyCreated();
         }
+
         _ipshareCreated[subject] = true;
-        uint256 price = getPrice(minHoldShares, 0);
-        if (msg.value < price + createFee) {
-            revert InsufficientPay();
-        }
         
+        uint256 price = getPrice(minHoldShares, amount);
+        require(msg.value >= price + createFee, "Insufficient payment");
         if (msg.value > price + createFee) {
             (bool success, ) = msg.sender.call{value: msg.value - price - createFee}("");
-            if (!success) {
-                revert RefundFail();
-            }
+            require(success, "refund fail");
         }
-        (bool success1, ) = donutFeeDestination.call{value: createFee}("");
-        if (!success1) {
-            revert PayCreateFeeFail();
-        }
-
-        uint256 updatedAmount = minHoldShares;
-        // the owner can get 10 share free
-        _ipshareSupply[subject] = updatedAmount;
-        // stake all the initial amount
-        _insertStaker(subject, subject, updatedAmount);
-        
-        _ipshareBalance[subject][subject] = 0;
-        totalStakedIPshare[subject] += updatedAmount;
-
-        _updateStake(subject, subject, updatedAmount);
-
+        (bool success1, ) = theFanFeeDestination.call{value: createFee}("");
+        require(success1, "pay create fee fail");
+        // the owner can get 1 share free
+        _ipshareBalance[msg.sender][msg.sender] += amount + minHoldShares;
+        _ipshareSupply[msg.sender] = amount + minHoldShares;
         // create ipshare wont cost fees
-        emit CreateIPshare(subject, minHoldShares, createFee);
+        emit CreateIPshare(msg.sender, amount + minHoldShares, createFee);
+        
 
-        emit Stake(subject, subject, true, updatedAmount, updatedAmount);
     }
 
     // ================================buy and sell=================================
@@ -261,7 +248,7 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         public
         payable
         override
-        onlyDonut
+        onlyTheFan
         nonReentrant
         whenNotPaused
         needTradable
@@ -282,14 +269,14 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         uint256 supply = _ipshareSupply[subject];
         uint256 buyFunds = value;
         uint256 subjectFee = (buyFunds * subjectFeePercent) / 10000;
-        uint256 donutFee = (buyFunds * donutFeePercent) / 10000;
+        uint256 theFanFee = (buyFunds * theFanFeePercent) / 10000;
 
         uint256 ipshareReceived = getBuyAmountByValue(
             supply,
-            buyFunds - subjectFee - donutFee
+            buyFunds - subjectFee - theFanFee
         );
 
-        (bool success1, ) = donutFeeDestination.call{value: donutFee}("");
+        (bool success1, ) = theFanFeeDestination.call{value: theFanFee}("");
         (bool success2, ) = subject.call{value: subjectFee}("");
         if (!success1 || !success2) {
             revert CostTradeFeeFail();
@@ -303,7 +290,7 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
             true,
             ipshareReceived,
             buyFunds,
-            donutFee,
+            theFanFee,
             subjectFee,
             supply + ipshareReceived
         );
@@ -330,12 +317,12 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         _ipshareSupply[subject] -= sellAmount;
 
         uint256 subjectFee = (price * subjectFeePercent) / 10000;
-        uint256 donutFee = (price * donutFeePercent) / 10000;
+        uint256 theFanFee = (price * theFanFeePercent) / 10000;
 
-        (bool success1, ) = donutFeeDestination.call{value: donutFee}("");
+        (bool success1, ) = theFanFeeDestination.call{value: theFanFee}("");
         (bool success2, ) = subject.call{value: subjectFee}("");
         (bool success3, ) = msg.sender.call{
-            value: price - subjectFee - donutFee
+            value: price - subjectFee - theFanFee
         }("");
         if (!(success1 && success2 && success3)) {
             revert UnableToSendFunds();
@@ -347,7 +334,7 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
             false,
             sellAmount,
             price,
-            donutFee,
+            theFanFee,
             subjectFee,
             afterSupply
         );
@@ -676,9 +663,9 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         uint256 amount
     ) public view override returns (uint256) {
         uint256 price = getBuyPrice(subject, amount);
-        uint256 donutFee = (price * donutFeePercent) / 10000;
+        uint256 theFanFee = (price * theFanFeePercent) / 10000;
         uint256 subjectFee = (price * subjectFeePercent) / 10000;
-        return price + donutFee + subjectFee;
+        return price + theFanFee + subjectFee;
     }
 
     function getSellPriceAfterFee(
@@ -686,9 +673,9 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         uint256 amount
     ) public view override returns (uint256) {
         uint256 price = getSellPrice(subject, amount);
-        uint256 donutFee = (price * donutFeePercent) / 10000;
+        uint256 theFanFee = (price * theFanFeePercent) / 10000;
         uint256 subjectFee = (price * subjectFeePercent) / 10000;
-        return price - donutFee - subjectFee;
+        return price - theFanFee - subjectFee;
     }
 
     /**

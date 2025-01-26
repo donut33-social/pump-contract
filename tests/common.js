@@ -6,13 +6,13 @@ const { UniswapV3Deployer } = require('./vendor/UniswapV3Deployer')
 async function deployPumpFactory() {
     const {
         ipshare,
-        donut,
+        theFan,
         owner,
         alice,
         bob,
         carol,
         buyer,
-        donutFeeDestination,
+        theFanFeeDestination,
         dexFeeDestination,
         subject
      } = await deployIPShare()
@@ -36,16 +36,16 @@ async function deployPumpFactory() {
     let uniswapV2Router02 = await routerFactory.deploy(uniswapV2Factory, weth);
 
     const Factory = await ethers.getContractFactory('Pump');
-    const pump = await Factory.deploy(ipshare, donutFeeDestination);
+    const pump = await Factory.deploy(ipshare, theFanFeeDestination);
     return {
         ipshare,
-        donut,
+        theFan,
         owner,
         alice,
         bob,
         carol,
         buyer,
-        donutFeeDestination,
+        theFanFeeDestination,
         dexFeeDestination,
         subject,
         pump,
@@ -61,20 +61,20 @@ async function deployIPShare() {
         alice, 
         bob, 
         carol, 
-        donut, 
+        theFan, 
         buyer, 
-        donutFeeDestination, 
+        theFanFeeDestination, 
         dexFeeDestination,
         subject
     ] = await ethers.getSigners();
 
     const ipshareFactory = await ethers.getContractFactory('IPShare');
     const ipshare = await ipshareFactory.deploy();
-    await ipshare.adminSetDonutFeeDestination(donutFeeDestination);
+    await ipshare.adminSetTheFanFeeDestination(theFanFeeDestination);
     return {
         // contracts
         ipshare,
-        donut,
+        theFan,
         // users
         owner,
         alice,
@@ -82,7 +82,7 @@ async function deployIPShare() {
         carol,
         buyer,
         // fee receivers
-        donutFeeDestination,
+        theFanFeeDestination,
         dexFeeDestination,
         subject
       };

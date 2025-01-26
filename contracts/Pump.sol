@@ -93,7 +93,7 @@ contract Pump is Ownable, Nonces, IPump {
         
         if (!IIPShare(ipshare).ipshareCreated(creator)) {
             // create ipshare
-            IIPShare(ipshare).createShare(creator);
+            IIPShare(ipshare).createShare(creator, 10 ether);
         }
 
         // cost fee

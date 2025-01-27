@@ -230,12 +230,10 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         (bool success1, ) = theFanFeeDestination.call{value: createFee}("");
         require(success1, "pay create fee fail");
         // the owner can get 1 share free
-        _ipshareBalance[msg.sender][msg.sender] += amount + minHoldShares;
-        _ipshareSupply[msg.sender] = amount + minHoldShares;
+        _ipshareBalance[subject][subject] += amount + minHoldShares;
+        _ipshareSupply[subject] = amount + minHoldShares;
         // create ipshare wont cost fees
-        emit CreateIPshare(msg.sender, amount + minHoldShares, createFee);
-        
-
+        emit CreateIPshare(subject, amount + minHoldShares, createFee);
     }
 
     // ================================buy and sell=================================

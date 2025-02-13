@@ -8,7 +8,7 @@ import math
 a, x = symbols('a x', real=True)
 
 # 定义方程 y = a - b / (x + 5 * 10^26)
-y = 1_400_000_000 * exp(x / a)
+y = 6_500_000_000 * exp(x / a)
 
 # 条件 1：x = 0 时，y = 1.5e9
 # condition1 = Eq(y.subs(x, 0), 1_400_000_000)
@@ -23,7 +23,7 @@ print(solutions)
 # a = solutions[1]
 # b = solutions[1]
 
-b = 2.4442889787856833e26
+b = 2.5175516438e26
 
 # #  1400000000    0.0000000014
 # #  20 000 000 000    0.000000020
@@ -31,7 +31,7 @@ b = 2.4442889787856833e26
 
 # Define the function y = 177000000000/7 - 33300000000000000000000000000000000000/7/(x + 2 * 10^26)y = 177000000000/7 - 33300000000000000000000000000000000000/7/(x + 2 * 10^26)
 def y_function(x):
-    return 1_400_000_000 * math.exp(x / 2.4442889787856833e26)
+    return 6_500_000_000 * math.exp(x / 2.5175516438e26)
 
 integral_result, error = quad(y_function, 0, 10**24)
 
@@ -64,6 +64,10 @@ print(f"2亿代币需要: {integral_result / 10**36}")
 integral_result, error = quad(y_function, 0, 6.5 * 10**26)
 
 print(f"6.5亿代币需要: {integral_result / 10**36}")
+
+print(f"初始价格为：{y_function(0) / 10 ** 18} USDT, 市值为：{y_function(0) / 10 ** 9}")
+print(f"bc结束价格为：{y_function(6.5 * 10**26) / 10 ** 18} USDT, 市值为：{y_function(6.5 * 10**26) / 10 ** 9}")
+print(f"Dex 价格为：{20 / 200000000}")
 
 # Generate x values from 0 to 7e26
 x_values = np.linspace(0, 6.5 * 10**26, 500)

@@ -9,7 +9,7 @@ import "./interface/IToken.sol";
 import "./interface/IIPShare.sol";
 import "./interface/IPump.sol";
 import "./interface/IUniswapV2Router02.sol";
-import "./interface/IUniswapV3Factory.sol";
+import "./interface/IUniswapV2Factory.sol";
 import "./interface/IBondingCurve.sol";
 import "./interface/INonfungiblePositionManager.sol";
 import "hardhat/console.sol";
@@ -18,6 +18,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     string private _name;
     string private _symbol;
     uint256 private constant divisor = 10000;
+    address private BlackHole = 0x000000000000000000000000000000000000dEaD;
 
     // distribute token total amount
     uint256 private constant socialDistributionAmount = 150000000 ether;
@@ -26,18 +27,10 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     uint256 public bondingCurveSupply = 0;
 
-    // last claim to social pool time
-    uint256 public lastClaimTime;
-    // pending reward in social pool to claim, init 50m to the bonding curve period
-    uint256 public pendingClaimSocialRewards = 50000000 ether;
-    // total claimed reward from social pool
-    uint256 public totalClaimedSocialRewards;
-
-    uint256 public startTime;
     mapping(uint256 => bool) public claimedOrder;
 
     // state
-    address private manager;
+    address private manager;        // pump contract address
     address public ipshareSubject;
     IBondingCurve public bondingCurve;
     bool public listed = false;
@@ -45,8 +38,6 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     // dex
     address public pair;
-    // 200000000 token and 4.546377500541374 ether price for uni v3
-    uint160 private sqrtPriceX96 = 11945307467447461835399701;
 
     receive() external payable {
         if (!listed) {
@@ -76,9 +67,8 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         _mint(address(manager), socialDistributionAmount);
 
         // create v3 pool and set price
-        pair = IUniswapV3Factory(IPump(manager).getUniswapV3Factory())
-            .createPool(address(this), IPump(manager).getWETH(), 10000);
-        IUniswapV3Factory(pair).initialize(sqrtPriceX96);
+        IUniswapV2Factory factory = IUniswapV2Factory(IPump(manager).getUniswapV2Factory());
+        pair = factory.createPair(address(this), IPump(manager).getWETH());
     }
 
     /********************************** bonding curve ********************************/
@@ -218,36 +208,21 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     /********************************** to dex ********************************/
     function _makeLiquidityPool() private {
-        listed = true;
-        uint256 tokenBalance = balanceOf(address(this));
-        uint256 ethBalance = address(this).balance;
-        address positionManager = IPump(manager).getNonfungiblePositionManager();
-        IWETH weth = IWETH(IPump(manager).getWETH());
-        weth.deposit{value: ethBalance}();
-        this.approve(positionManager, tokenBalance);
-        weth.approve(positionManager, ethBalance);
-        
-        INonfungiblePositionManager.MintParams
-            memory mintParams = INonfungiblePositionManager.MintParams(
-                address(this),
-                IPump(manager).getWETH(),
-                10000,
-                -887272,
-                887272,
-                tokenBalance,
-                ethBalance,
-                0,
-                0,
-                address(this),
-                block.timestamp
-            );
+        _approve(address(this), IPump(manager).getUniswapV2Router(), liquidityAmount);
 
-        (uint256 tokenId, , uint256 amount0, uint256 amount1) 
-            = INonfungiblePositionManager(IPump(manager).getNonfungiblePositionManager())
-            .mint(mintParams);
-        console.log("tokenId", tokenId);
-        console.log("amount0", amount0);
-        console.log("amount1", amount1);
+        IUniswapV2Router02 router = IUniswapV2Router02(IPump(manager).getUniswapV2Router());
+
+        router.addLiquidityETH{value: address(this).balance}(
+            address(this),
+            liquidityAmount,
+            0,
+            0,
+            BlackHole,
+            block.timestamp + 300
+        );
+
+        listed = true;
+        emit TokenListedToDex(pair);
     }
 
     /********************************** erc20 function ********************************/
@@ -265,15 +240,5 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             revert TokenNotListed();
         }
         return super._beforeTokenTransfer(from, to, amount);
-    }
-
-    function balanceOf(address account) public view override returns (uint256) {
-        if (listed) {
-            return super.balanceOf(account);
-        }
-        if (account == pair || account == IPump(manager).getNonfungiblePositionManager()) {
-            revert TokenNotListed();
-        }
-        return super.balanceOf(account);
     }
 }

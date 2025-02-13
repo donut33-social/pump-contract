@@ -17,23 +17,28 @@ async function deployPumpFactory() {
         subject
      } = await deployIPShare()
 
-    const res = await UniswapV3Deployer.deploy(owner);
      
-    //    // deploy weth
-    // const wethFactory = await ethers.getContractFactory("WETH9");
-    // const weth = await wethFactory.deploy();
+       // deploy weth
+    const wethFactory = await ethers.getContractFactory("WETH9");
+    const weth = await wethFactory.deploy();
 
-    //     // deploy dex
-    // const UniswapV3Factory = await ethers.getContractFactory("UniswapV3Factory");
-    // const uniswapV3Factory = await UniswapV3Factory.deploy();
-    // uniswapV3Factory.deployed();
+        // deploy dex
+    const UniswapV2Factory = await ethers.getContractFactory("UniswapV2Factory");
+    const uniswapV2Factory = await UniswapV2Factory.deploy(dexFeeDestination);
+    await uniswapV2Factory.connect(dexFeeDestination).setFeeTo(dexFeeDestination);
     
-    // const PositionManager = await ethers.getContractFactory("NonfungiblePositionManager");
-    // const positionManager = await PositionManager.deploy(uniswapV3Factory, weth);
-    // positionManager.deployed();
+    let initCode = await uniswapV2Factory.pairCodeHash();
+    // need set this code to pairFor(function) of UniswapV2Library
+    initCode = initCode.replace('0x', '');
+    console.log('init code:', initCode);
+
+    // deploy router
+    let routerFactory = await ethers.getContractFactory("UniswapV2Router02");
+    let uniswapV2Router02 = await routerFactory.deploy(uniswapV2Factory, weth);
 
     const Factory = await ethers.getContractFactory('Pump');
-    const pump = await Factory.deploy(ipshare, donutFeeDestination, res.weth9, res.positionManager, res.factory);
+    
+    const pump = await Factory.deploy(ipshare, donutFeeDestination, weth, uniswapV2Factory, uniswapV2Router02);
 
     const TestERC20 = await ethers.getContractFactory('TestERC20');
     const testERC20 = await TestERC20.deploy();
@@ -49,11 +54,10 @@ async function deployPumpFactory() {
         dexFeeDestination,
         subject,
         pump,
-        weth: res.weth9,
-        uniswapV3Factory: res.factory,
-        positionManager: res.positionManager,
-        testERC20,
-        artifacts: res.artifacts
+        weth,
+        uniswapV2Factory,
+        uniswapV2Router02,
+        testERC20
     }
 }
 

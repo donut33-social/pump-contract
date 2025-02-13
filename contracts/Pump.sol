@@ -16,23 +16,21 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
     address private ipshare;
-    address private bondingCurve;
-    uint256 public createFee = 0.001 ether;
-    uint256 private claimFee = 0.0001 ether;
+    uint256 public createFee = 0.01 ether;
+    uint256 private claimFee = 0.001 ether;
     uint256 private divisor = 10000;
     uint256 private secondPerDay = 86400;
-    address private feeReceiver;
-    address private claimSigner;
-    uint256[2] private feeRatio;  // 0: to tiptag; 1: to salesman
-    address private WETH = 0x4200000000000000000000000000000000000006;
-    address private uniswapV3Factory 
-        = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
-    address private positionManager 
-        = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1;
+    address private feeReceiver = 0x06Deb72b2e156Ddd383651aC3d2dAb5892d9c048;
+    address private claimSigner = 0x78C2aF38330C5b41Ae7946A313e43cDCEEaf8611;
+    uint256[2] private feeRatio = [100, 100];  // 0: to tiptag; 1: to salesman
+    address private WETH = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;  // bsc
+    address private uniswapV2Factory 
+        = 0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73;  // bsc
+    address private uniswapV2Router 
+        = 0x10ED43C718714eb63d5aA57B78B54704E256024E;  // bsc   
 
     mapping(address => bool) public createdTokens;
     mapping(string => bool) public createdTicks;
-    mapping(address => uint256) private createdSaltsIndex;
 
     // social distribution
     uint256 private constant claimAmountPerSecond = 11.574074 ether;
@@ -43,19 +41,9 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
     uint256 public totalTokens;
 
     constructor(
-        address _ipshare, 
-        address _feeReceiver, 
-        address _weth, 
-        address _positionManager, 
-        address _uniswapV3Factory
+        address _ipshare
     ) Ownable(msg.sender) {
         ipshare = _ipshare;
-        feeReceiver = _feeReceiver;
-        feeRatio = [100, 100];
-        claimSigner = 0x78C2aF38330C5b41Ae7946A313e43cDCEEaf8611;
-        WETH = _weth;
-        positionManager = _positionManager;
-        uniswapV3Factory = _uniswapV3Factory;
     }
 
     receive() external payable {}
@@ -67,7 +55,7 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
     }
 
     function adminChangeCreateFee(uint256 _createFee) public onlyOwner {
-        if (_createFee > 0.1 ether) {
+        if (_createFee > 1 ether) {
             revert TooMuchFee();
         }
         emit CreateFeeChanged(createFee, _createFee);
@@ -111,30 +99,24 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
         return claimSigner;
     }
 
-    function getBondingCurve() public override view returns (address) {
-        return bondingCurve;
+    function getUniswapV2Factory() public override view returns (address) {
+        return uniswapV2Factory;
     }
 
-    function getNonfungiblePositionManager() public override view returns (address) {
-        return positionManager;
-    }
-
-    function getUniswapV3Factory() public override view returns (address) {
-        return uniswapV3Factory;
+    function getUniswapV2Router() public override view returns (address) {
+        return uniswapV2Router;
     }
 
     function getWETH() public override view returns (address) {
         return WETH;
     }
 
-    function createToken(string calldata tick, bytes32 salt)
+    function createToken(string calldata tick)
         public payable override nonReentrant returns (address) {
         if (createdTicks[tick]) {
             revert TickHasBeenCreated();
         }
-        if (uint256(salt) <= createdSaltsIndex[msg.sender]) {
-            revert SaltNotAvailable();
-        }
+        
         createdTicks[tick] = true;
 
         // check user created ipshare
@@ -154,11 +136,9 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
             revert InsufficientCreateFee();
         }
 
-        Token token = new Token{salt: keccak256(abi.encode(msg.sender, salt))}();
+        Token token = new Token();
         address instance  = address(token);
-        createdSaltsIndex[creator] = uint256(salt);
 
-        // address instance = Clones.cloneDeterministic(tokenImplementation, salt);
         emit NewToken(tick, instance, creator);
         
         token.initialize(
@@ -191,30 +171,6 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
         return instance;
     }
 
-    function generateSalt(address deployer) public view returns (bytes32 salt, address token) {
-        uint256 currentIndex = createdSaltsIndex[deployer];
-        for (uint256 i = currentIndex + 1; ; i++) {
-            salt = bytes32(i);
-            bytes32 create2Salt = keccak256(abi.encode(deployer, salt));
-            bytes32 r = keccak256(
-                        abi.encodePacked(
-                            bytes1(0xff),
-                            address(this),
-                            create2Salt,
-                            keccak256(
-                                abi.encodePacked(
-                                    type(Token).creationCode
-                                )
-                            )
-                        )
-                    );
-            token = address(uint160(uint256(r)));   
-            if (token < WETH) {
-                break;
-            }
-        }
-    }
-
      /********************************** social distribution ********************************/
     function calculateReward(uint256 from, uint256 to) public pure returns (uint256 rewards) {
         if (from >= to) return 0;
@@ -242,8 +198,8 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
         if (signature.length != 65) {
             revert InvalidSignature();
         }
-        if (token != address(this)) {
-            revert InvalidSignature();
+        if (!createdTokens[token]) {
+            revert TokenNotCreated();
         }
 
         if (msg.value < claimFee) {
@@ -297,8 +253,8 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
      * calculate the eth price when user buy amount tokens
      */
     function getPrice(uint256 supply, uint256 amount) public pure override returns (uint256) {
-        uint256 a = 1_400_000_000;
-        uint256 b = 2.4442889787856833e26;
+        uint256 a = 6_500_000_000;
+        uint256 b = 2.5175516438e26;
         uint256 x = FixedPointMathLib.mulWad(a, b);
         uint256 e1 = uint256(FixedPointMathLib.expWad(int256((supply + amount) * 1e18 / b)));
         uint256 e2 = uint256(FixedPointMathLib.expWad(int256((supply) * 1e18 / b)));
@@ -320,8 +276,8 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
     }
 
     function getBuyAmountByValue(uint256 bondingCurveSupply, uint256 ethAmount) public pure override returns (uint256) {
-        uint256 a = 1_400_000_000;
-        uint256 b = 2.4442889787856833e26;
+        uint256 a = 6_500_000_000;
+        uint256 b = 2.5175516438e26;
         // b * ln(ethAmount / (a*b) + exp(bondingCurveSupply/b)) - bondingCurveSupply;
         uint256 ab = FixedPointMathLib.mulWad(a, b);
         uint256 sab = FixedPointMathLib.divWad(ethAmount, ab);

@@ -13,8 +13,8 @@ describe("Pump", function () {
     let ipshare;
     let pump;
     let weth;
-    let uniswapV3Factory;
-    let positionManager
+    let uniswapV2Factory;
+    let uniswapV2Router02
     let testERC20
     let artifacts
     beforeEach(async () => {
@@ -31,8 +31,8 @@ describe("Pump", function () {
             subject,
             pump,
             weth,
-            uniswapV3Factory,
-            positionManager,
+            uniswapV2Factory,
+            uniswapV2Router02,
             testERC20,
             artifacts
         } = await loadFixture(deployPumpFactory));
@@ -47,14 +47,14 @@ describe("Pump", function () {
         return await pump.createFee()
     }
 
-    async function createToken(deployer, tick, salt, createValue) {
+    async function createToken(deployer, tick, createValue) {
         return new Promise(async (resolve, reject) => {
             try {
                 pump.on('NewToken', (tick, token) => {
                     resolve({ token, tick })
                 })
                 await sleep(0.1)
-                const trans = await pump.connect(deployer ?? owner).createToken(tick, salt[0], {
+                const trans = await pump.connect(deployer ?? owner).createToken(tick, {
                     value: createValue
                 });
                 await pump.adminChangeClaimSigner(owner)
@@ -71,47 +71,15 @@ describe("Pump", function () {
         return await owner.signMessage(ethers.toBeArray(message))
     }
 
-    describe("Uni v3", function () {
-        it("should create pool", async function () {
-            let pool = await uniswapV3Factory.createPool(testERC20, weth, 10000);
-            let poolAddress = await uniswapV3Factory.getPool(testERC20, weth, 10000);
-            expect(poolAddress).to.not.be.null;
-            pool = await ethers.getContractAt(artifacts.UniswapV3Pool.abi, poolAddress);
-            await pool.initialize(124523523544);
-
-            const manager = await ethers.getContractAt(artifacts.NonfungiblePositionManager.abi, positionManager);
-            const position = await manager.positions(1);
-            console.log("position", position);
-        })
-    })
-
     describe("Create token", function () {
         let createValue;
         beforeEach(async () => {
             createValue = await getCreateFee();
         })
 
-        it("should generate token address less than weth", async function () {
-            for (let i = 0; i < 10; i++) {
-                let salt = await pump.generateSalt(alice);
-                const { token, tick } = await createToken(alice, 'T' + i, salt, createValue);
-                expect(token).to.be.equal(salt[1]);
-                expect(BigInt(token)).to.be.lessThan(BigInt(weth.target));
-            }
-
-            for (let i = 0; i < 10; i++) {
-                let salt = await pump.generateSalt(bob);
-                const { token, tick } = await createToken(bob, 'TB' + i, salt, createValue);
-                expect(token).to.be.equal(salt[1]);
-                expect(BigInt(token)).to.be.lessThan(BigInt(weth.target));
-            }
-        })
-
         it("Can not create same tick", async function () {
-            let salt = await pump.generateSalt(alice);
-            await createToken(alice, 'T1', salt, createValue); 
-            salt = await pump.generateSalt(alice);
-            await expect(pump.connect(alice).createToken('T1', salt[0]))
+            await createToken(alice, 'T1', createValue); 
+            await expect(pump.connect(alice).createToken('T1'))
                 .to.revertedWithCustomError(pump, 'TickHasBeenCreated');
         })
     })
@@ -122,8 +90,7 @@ describe("Pump", function () {
         let createFee;
         beforeEach(async () => {
             createFee = await getCreateFee()
-            const salt = await pump.generateSalt(alice);
-            token = await createToken(alice, 'T1', salt, createFee);
+            token = await createToken(alice, 'T1', createFee);
             token = await ethers.getContractAt('Token', token.token);
             pair = await token.pair();
         })
@@ -171,8 +138,7 @@ describe("Pump", function () {
             
             const buyAmount = await pump.getBuyAmountByValue(0, feeInfo.buyFund);
 
-            const salt = await pump.generateSalt(owner)
-            let testToken = await createToken(owner, 'T2', salt, createFee + buyFund)
+            let testToken = await createToken(owner, 'T2', createFee + buyFund)
             testToken = await ethers.getContractAt('Token', testToken.token)
             expect(await testToken.balanceOf(owner)).eq(buyAmount);
         })
@@ -247,16 +213,16 @@ describe("Pump", function () {
             let supply = await getBondingCurveSupply()
 
             const price = await pump.getBuyPriceAfterFee(supply, parseAmount(100000000))
-            expect(price).eq(277605852434926720n)
+            expect(price).eq(911848133866902953n)
 
             await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, alice, {
-                value: 277605852434926720n
+                value: 911848133866902953n
             })
             supply = await getBondingCurveSupply()
 
             const sellPrice = await pump.getSellPriceAfterFee(supply, parseAmount(100000000))
-            expect(sellPrice).eq(266612660678503621n)
-            expect(price * 9800n / 10000n * 9800n / 10000n).eq(sellPrice)
+            expect(sellPrice).eq(875738947765773594n)
+            expect(price * 9800n / 10000n * 9800n / 10000n).eq(sellPrice + 1n)
         })
 
         it("The sellsman cant purchase token if he did not created ipshare", async () => {
@@ -293,7 +259,7 @@ describe("Pump", function () {
                 .to.revertedWithCustomError(token, 'TokenNotListed')
         })
 
-        it("Cannt transfer/read banlance of v3 pool and position manager", async () => {
+        it("Cannt transfer banlance of v2 pool and position manager", async () => {
             const buyFund = parseAmount(0.2)
 
             const feeInfo = await getBuyFeeData(buyFund)
@@ -305,42 +271,22 @@ describe("Pump", function () {
             const transferAmount = parseAmount(10000)
             await expect(token.connect(alice).transfer(pair, transferAmount))
                 .to.be.revertedWithCustomError(token, 'TokenNotListed')
-
-            await expect(token.balanceOf(pair))
-                .to.be.revertedWithCustomError(token, 'TokenNotListed')
-            
-            await expect(token.balanceOf(positionManager))
-                .to.be.revertedWithCustomError(token, 'TokenNotListed')
         })
 
         it('Cannt make lp before list', async () => {
-            const MintParams = {
-                token0: token.target, // USDC 地址
-                token1: weth.target, // WETH 地址
-                fee: 10000, // 0.3% 池子
-                tickLower: -887220, // 全域范围的 tickLower
-                tickUpper: 887220, // 全域范围的 tickUpper
-                amount0Desired: parseAmount(1000000), // USDC 的数量 (1000 USDC)
-                amount1Desired: parseAmount(0.1), // WETH 的数量 (1 WETH)
-                amount0Min: 0, // 滑点保护
-                amount1Min: 0, // 滑点保护
-                recipient: alice.address, // 接收流动性 NFT 的地址
-                deadline: Math.floor(Date.now() / 1000) + 60 * 10, // 当前时间戳 + 10 分钟
-              };
-
-            await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, alice, {
-                value: parseAmount(0.1)
+            await token.buyToken(parseAmount(100000000), ethers.ZeroAddress, 0 ,ethers.ZeroAddress, {
+                value: parseAmount(1)
             })
-
-            await token.connect(alice).approve(positionManager.target, parseAmount(100000000))
-
-            try {
-                await positionManager.mint(MintParams)
-            } catch (error) {
-                console.error('cannt provide liquidity before list')
-            }   
-            // await expect(positionManager.mint(MintParams))
-            //     .to.be.revertedWithCustomError(token, 'TokenNotListed')
+            // router.addLiquidityETH{
+            //     value: address(this).balance
+            // }(address(this), liquidityAmount, 0, 0, BlackHole, block.timestamp + 300);
+            const router = await ethers.getContractAt('UniswapV2Router02', uniswapV2Router02);
+            await token.approve(router, parseAmount(10000000000))
+            await token.transfer(router, parseAmount(1000));
+            await expect(router.addLiquidityETH(token, parseAmount(100000), 0, 0, '0x000000000000000000000000000000000000dEaD', Math.floor(Date.now() / 1000) +300,
+                {
+                    value: parseAmount(10)
+                })).to.revertedWith('TransferHelper: TRANSFER_FROM_FAILED')
         })
     })
 
@@ -350,8 +296,7 @@ describe("Pump", function () {
         let createFee;
         beforeEach(async () => {
             createFee = await getCreateFee()
-            const salt = await pump.generateSalt(alice);
-            token = await createToken(alice, 'T1', salt, createFee);
+            token = await createToken(alice, 'T1', createFee);
             token = await ethers.getContractAt('Token', token.token);
             pair = await token.pair();
         })
@@ -393,11 +338,11 @@ describe("Pump", function () {
             const bondingCurveSupply = await getBondingCurveSupply()
             const gb = await pump.getPrice(bondingCurveSupply, bondingTotalAmount - bondingCurveSupply);
             await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, alice, {
-                value: parseAmount(0.1)
+                value: parseAmount(1)
             })
             const bondingCurveSupply2 = await getBondingCurveSupply()
             const gb2 = await pump.getBuyPriceAfterFee(bondingCurveSupply2, bondingTotalAmount - bondingCurveSupply2);
-            const buyFund = parseAmount(6)
+            const buyFund = parseAmount(21)
             
             await expect(token.connect(bob).buyToken(bondingTotalAmount, ethers.ZeroAddress, 0, alice, {
                 value: buyFund
@@ -405,48 +350,233 @@ describe("Pump", function () {
         })
 
         it("The last buyer will make the liquidity pool too", async () => {
+            let buyAmount = parseAmount(600001000)
 
+            let bondingCurveSupply = await getBondingCurveSupply()
+            let needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
+                value: needEth 
+            })
+
+            const balanceOfBob = await token.balanceOf(bob)
+            // console.log('balance of bob', balanceOfBob)
+
+            buyAmount = parseAmount(100000000)
+             bondingCurveSupply = await getBondingCurveSupply()
+            needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, alice, {
+                value: needEth
+            })).to.changeTokenBalance(token, alice, parseAmount(650000000) - balanceOfBob)
         })
 
-        it('will emit list event with the last buy', async () => {})
+        it('will emit list event with the last buy', async () => {
+            let buyAmount = parseAmount(600000000)
+            let bondingCurveSupply = await getBondingCurveSupply()
+            let needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
+                value: needEth
+            })
 
-        it('The list price is correct', async () => {
-            const pool = await token.pair();
-            console.log({pool})
-            const poolContract = await ethers.getContractAt(artifacts.UniswapV3Pool.abi, pool);
-            let  price = await poolContract.slot0();
-            price = (Number(price[0]) / 2**96) ** 2
-            expect(price).eq(2.2731887502706873e-8)
+            const balanceOfBob = await token.balanceOf(bob)
+            // console.log('balance of bob', balanceOfBob)
+
+            buyAmount = parseAmount(200000000)
+            bondingCurveSupply = await getBondingCurveSupply()
+            needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, alice, {
+                value: needEth
+            })).to.emit(token, 'TokenListedToDex').withArgs(pair)
         })
 
-        it('List will cost most of the token in contract', async () => {})
+        it('List will cost most of the token in contract', async () => {
+            let buyAmount = parseAmount(600000000)
+            let bondingCurveSupply = await getBondingCurveSupply()
+            let needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
+                value: needEth
+            })
+
+            const balanceOfBob = await token.balanceOf(bob)
+            // console.log('balance of bob', balanceOfBob)
+
+            buyAmount = parseAmount(200000000)
+            bondingCurveSupply = await getBondingCurveSupply()
+            needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, alice, {
+                value: needEth
+            })).to.emit(token, 'TokenListedToDex').withArgs(pair)
+            const balanceOfToken = await token.balanceOf(token);
+            console.log('balance of token', balanceOfToken)
+            expect(balanceOfToken).eq(0)
+        })
     })
 
     describe('After token list', function () {
-        it("Can trade token to everyone", async () => {})
+        let token;
+        let feeRatio;
+        beforeEach(async () => {
+            token = await pump.createToken('T1', { value: parseAmount(0.1) })
+            token = await ethers.getContractAt('Token', '0x61c36a8d610163660e21a8b7359e1cac0c9133e1')
+            // await token.setUniForTest(weth, uniswapV2Factory, uniswapV2Router02);
+            feeRatio = await getFeeRatio();
+            await mine(86400);
+            let buyAmount = parseAmount(660000000)
+            const supply = await getBondingCurveSupply()
+            let needEth = await pump.getBuyPriceAfterFee(supply, buyAmount)
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
+                value: needEth
+            })
+        })
 
-        it("Can transfer eth to token contract", async () => {})
+        async function getBondingCurveSupply() {
+            return await token.bondingCurveSupply()
+        }
 
-        it("Can claim curation token", async () => {})
+        it("Can trade token to everyone", async () => {
+            await expect(token.connect(bob).transfer(alice, parseAmount(1000000)))
+                .to.changeTokenBalances(token, [
+                    alice, bob
+                ], [
+                    parseAmount(1000000), -parseAmount(1000000)
+                ])
 
-        it('Will revert if the signature is valid', async () => {})
+            await expect(token.connect(alice).transfer(carol, parseAmount(100000)))
+                .to.changeTokenBalances(token, [
+                    alice, carol
+                ], [
+                    -parseAmount(100000), parseAmount(100000)
+                ])
+        })
 
-        it('will revert if insufficient claim fee', async () => {})
+        it("Can transfer eth to token contract", async () => {
+            await expect(alice.sendTransaction({
+                to: token.target,
+                value: parseAmount(1)
+            })).to.changeEtherBalances(
+                [token, alice],
+                [parseAmount(1), -parseAmount(1)]
+            )
+        })
 
-        it('will refund the left fee back to user', async () => {})
+        it("Can claim curation token", async () => {
+            const pendingClaimSocialRewards = await token.pendingClaimSocialRewards();
+            const totalClaimedSocialRewards = await token.totalClaimedSocialRewards();
+            console.log(1, pendingClaimSocialRewards, totalClaimedSocialRewards)
 
-        it('will revert if the claim amount is greater than social pool', async () => {})
+            const blockNumber = await ethers.provider.getBlockNumber();
+            const block = await ethers.provider.getBlock(blockNumber);
+            const timestamp = block.timestamp;
+            
+            let claimAmount = parseAmount(10000);
+            let orderId = 23059723523125626n;
+            let signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
+            await expect(pump.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.001)
+            }))
+                .to.emit(pump, 'UserClaimReward')
+                .withArgs(ethers.getAddress(token.target), orderId, alice.address, claimAmount);
 
-        it('will revert if the order has been claimed', async () => {})
+            orderId = 23852135483n;
+            signature = await getClaimSignature(token.target, orderId, claimAmount, bob.address)
+            await expect(pump.connect(bob).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.001)
+            })).to.changeTokenBalances(token, [bob, pump], [claimAmount, -claimAmount])
+        })
 
-        it('will revet if user use the token a signature to claim token b reward', async () => {})
+        it('Will revert if the signature is valid', async () => {
+            const claimAmount = parseAmount(10000);
+            const orderId = 23059723523125626n;
+            const signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
+            await expect(pump.connect(alice).userClaim(token, orderId, claimAmount, signature.replace('3', '5'), {
+                value: parseAmount(0.222)
+            }))
+                .to.revertedWithCustomError(token, 'InvalidSignature')
+        })
 
-        it('Cannt trade with bonding curve', async () => {})
+        it('will revert if insufficient claim fee', async () => {
+            const claimAmount = parseAmount(10000);
+            const orderId = 23059723523125626n;
+            const signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
+            await expect(pump.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: 100000000n
+            })).to.revertedWithCustomError(token, 'CostFeeFail')
+        })
 
-        it("Can swap token with uniswap", async () => {})
+        it('will not refund the left fee back to user', async () => {
+            const claimAmount = parseAmount(10000);
+            const orderId = 23059723523125626n;
+            const signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
+            await expect(pump.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.1)
+            })).to.changeEtherBalance(alice, parseAmount(-0.1))
+        })
+
+        it('will revert if the claim amount is greater than social pool', async () => {
+            const claimAmount = parseAmount(1000000000);
+            const orderId = 23059723523125626n;
+            const signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
+            await expect(pump.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.002)
+            }))
+                .to.revertedWithCustomError(pump, 'InvalidClaimAmount')
+        })
+
+        it('will revert if the order has been claimed', async () => {
+            let claimAmount = parseAmount(10000);
+            let orderId = 23059723523125626n;
+            let signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
+            await expect(pump.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.001)
+            }))
+                .to.emit(pump, 'UserClaimReward')
+                .withArgs(ethers.getAddress(token.target), orderId, alice.address, claimAmount);
+
+            await expect(pump.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.001)
+            }))
+                .to.revertedWithCustomError(token, 'ClaimOrderExist')
+
+            claimAmount = parseAmount(1000);
+            signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
+            await expect(pump.connect(alice).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.001)
+            }))
+                .to.revertedWithCustomError(pump, 'ClaimOrderExist')
+        })
+
+        it('will revet if user use the token a signature to claim token b reward', async () => {
+            let claimAmount = parseAmount(10000);
+            let orderId = 23059723523125626n;
+            let signature = await getClaimSignature(token.target, orderId, claimAmount, alice.address)
+            await expect(pump.connect(bob).userClaim(token, orderId, claimAmount, signature, {
+                value: parseAmount(0.001)
+            }))
+                .to.revertedWithCustomError(pump, 'InvalidSignature')
+        })
+
+        it('Cannt trade with bonding curve', async () => {
+            await expect(token.connect(alice).buyToken(parseAmount(1000), ethers.ZeroAddress, 0, alice, {
+                value: parseAmount(0.01)
+            })).to.revertedWithCustomError(token, 'TokenListed')
+
+            await expect(token.connect(bob).sellToken(parseAmount(100), 0, ethers.ZeroAddress, 0))
+                .to.revertedWithCustomError(token, 'TokenListed')
+        })
+
+        it("Can swap token with uniswap", async () => {
+            const blockNumber = await ethers.provider.getBlockNumber();
+            const block = await ethers.provider.getBlock(blockNumber);
+            const now = block.timestamp + 10;
+            await token.connect(bob).approve(uniswapV2Router02, parseAmount(100000000));
+            await expect(uniswapV2Router02.connect(bob).swapExactTokensForETH(
+                parseAmount(100000),
+                0,
+                [token, weth],
+                alice,
+                now
+            )).to.changeTokenBalance(token, bob, -parseAmount(100000));
+        })
 
         it("Can provide liquidity outside of the pool", async () => {})
-
-        it("Can get swap fee from uniswap", async () => {})
     })
 })

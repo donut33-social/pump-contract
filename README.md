@@ -11,3 +11,9 @@ REPORT_GAS=true npx hardhat test
 npx hardhat node
 npx hardhat ignition deploy ./ignition/modules/Lock.js
 ```
+
+更换了bonding curve为y=a*exp(x/b)
+list的dex换成uni v3
+
+
+

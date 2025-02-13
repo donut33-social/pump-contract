@@ -278,17 +278,17 @@ describe("IPShare", function () {
             // donutFee,
             // subjectFee,
             // supply + ipshareReceived
-            await expect(buyIPShare(subject, alice, 0.01))
+            await expect(buyIPShare(subject, alice, 0.1))
                 .to.emit(ipshare, 'Trade')
                 .withArgs(
                     alice,
                     subject,
                     true,
-                    25736762993503133133n,
-                    10000000000000000n,
-                    250000000000000n,
-                    450000000000000n,
-                    35736762993503133133n
+                    20687813601627909324n,
+                    100000000000000000n,
+                    2500000000000000n,
+                    4500000000000000n,
+                    30687813601627909324n
                 )
 
             await expect(sellIPShare(subject, alice, parseAmount(10)))
@@ -298,15 +298,15 @@ describe("IPShare", function () {
                     subject,
                     false,
                     10000000000000000000n,
-                    5956762079075731n,
-                    148919051976893n,
-                    268054293558407n,
-                    25736762993503133133n
+                    66819710096531315n,
+                    1670492752413282n,
+                    3006886954343909n,
+                    20687813601627909324n
                 )
         })
 
         it('Can stake and unstake shares', async () => {
-            await buyIPShare(subject, alice, 0.1)
+            await buyIPShare(subject, alice, 10)
             await expect(ipshare.connect(alice).stake(subject, parseAmount(30)))
                 .to.emit(ipshare, 'Stake')
                 .withArgs(alice, subject, true, parseAmount(30), parseAmount(30))

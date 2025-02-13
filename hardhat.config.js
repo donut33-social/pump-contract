@@ -98,11 +98,19 @@ module.exports = {
       accounts: [
         process.env.KEY
       ]
+    },
+    bsc: {
+      url: process.env.BSC,
+      chainId: 56,
+      accounts: [
+        process.env.KEY
+      ]
     }
   },
   etherscan: {
     apiKey:{
-      base: process.env.BASE_API_KEY
+      base: process.env.BASE_API_KEY,
+      bsc: process.env.BSC_API_KEY
     }
   },
   // flattenExporter: {

@@ -98,12 +98,6 @@ class UniswapV3Deployer {
     nftDescriptorLibraryAddress,
     weth9Address
   ) {
-    const NFTDescriptor = await ContractFactory(artifacts.NFTDescriptor.abi, artifacts.NFTDescriptor.bytecode, {
-      libraries: {
-        NFTDescriptorLibrary: nftDescriptorLibraryAddress,
-      }
-    });
-
     const linkedBytecode = linkLibraries(
       {
         bytecode: artifacts.NonfungibleTokenPositionDescriptor.bytecode,
@@ -112,7 +106,7 @@ class UniswapV3Deployer {
             NFTDescriptor: [
               {
                 length: 20,
-                start: 1261,
+                start: 1681,
               },
             ],
           },

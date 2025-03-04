@@ -75,13 +75,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     function buyToken(
         uint256 expectAmount,
         address sellsman,
-        uint16 slippage,
-        address receiver
+        uint16 slippage
     ) public payable nonReentrant returns (uint256) {
         sellsman = _checkBondingCurveState(sellsman);
-        if (receiver == address(0)) {
-            receiver = tx.origin;
-        }
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
         uint256 buyFunds = msg.value;
         uint256 tiptagFee = (msg.value * feeRatio[0]) / divisor;
@@ -94,6 +90,13 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
         if (tokenReceived + bondingCurveSupply >= bondingCurveTotalAmount) {
             uint256 actualAmount = bondingCurveTotalAmount - bondingCurveSupply;
+            if (
+                slippage > 0 &&
+                (actualAmount > (expectAmount * (divisor + slippage)) / divisor ||
+                    actualAmount < (expectAmount * (divisor - slippage)) / divisor)
+            ) {
+                revert OutOfSlippage();
+            }
             // calculate used eth
             uint256 usedEth = bondingCurve.getBuyPriceAfterFee(bondingCurveSupply,actualAmount);
             if (usedEth > msg.value) {
@@ -116,10 +119,10 @@ contract Token is IToken, ERC20, ReentrancyGuard {
                 revert CostFeeFail();
             }
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
-            this.transfer(receiver, actualAmount);
+            this.transfer(msg.sender, actualAmount);
             bondingCurveSupply += actualAmount;
 
-            emit Trade(receiver, sellsman, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
+            emit Trade(msg.sender, sellsman, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
             // build liquidity pool
             _makeLiquidityPool();
             return actualAmount;
@@ -138,9 +141,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             }
 
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
-            this.transfer(receiver, tokenReceived);
+            this.transfer(msg.sender, tokenReceived);
             bondingCurveSupply += tokenReceived;
-            emit Trade(receiver, sellsman, true, tokenReceived, msg.value, tiptagFee, sellsmanFee);
+            emit Trade(msg.sender, sellsman, true, tokenReceived, msg.value, tiptagFee, sellsmanFee);
             return tokenReceived;
         }
     }

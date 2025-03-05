@@ -256,7 +256,8 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     // The subject addres always equal to the KOL/Author, one subject corresponding a c-share
     function buyShares(
         address subject,
-        address buyer
+        address buyer,
+        uint256 amountOutMin
     )
         public
         payable
@@ -267,12 +268,13 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         needTradable
         returns (uint256)
     {
-        return _buyShares(subject, buyer, msg.value);
+        return _buyShares(subject, buyer, msg.value, amountOutMin);
     }
 
     function _buyShares(
         address subject,
         address buyer,
+        uint256 amountOutMin,
         uint256 value
     ) private returns (uint256) {
         // check subject exist
@@ -288,6 +290,10 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
             supply,
             buyFunds - subjectFee - donutFee
         );
+
+        if (amountOutMin > 0 && ipshareReceived < amountOutMin) {
+            revert OutOfSlippage();
+        }
 
         (bool success1, ) = donutFeeDestination.call{value: donutFee}("");
         (bool success2, ) = subject.call{value: subjectFee}("");
@@ -313,7 +319,8 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
     // every one can sell his c-shares
     function sellShares(
         address subject,
-        uint256 shareAmount
+        uint256 shareAmount,
+        uint256 amountOutMin
     ) public override nonReentrant whenNotPaused needTradable {
         uint256 supply = _ipshareSupply[subject];
         uint sellAmount = shareAmount;
@@ -331,6 +338,10 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
 
         uint256 subjectFee = (price * subjectFeePercent) / 10000;
         uint256 donutFee = (price * donutFeePercent) / 10000;
+
+        if (amountOutMin > 0 && price - subjectFee - donutFee < amountOutMin) {
+            revert OutOfSlippage();
+        }
 
         (bool success1, ) = donutFeeDestination.call{value: donutFee}("");
         (bool success2, ) = subject.call{value: subjectFee}("");
@@ -362,7 +373,7 @@ contract IPShare is Ownable, Pausable, ReentrancyGuard, IPShareevents, IIPShare 
         if (msg.value == 0) {
             revert NoFunds();
         }
-        uint256 obtainedAmount = _buyShares(subject, self, msg.value);
+        uint256 obtainedAmount = _buyShares(subject, self, 0, msg.value);
         // update acc
         if (totalStakedIPshare[subject] > 0) {
             ipshareAcc[subject] +=

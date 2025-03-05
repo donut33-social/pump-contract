@@ -2,66 +2,51 @@
 pragma solidity 0.8.20;
 
 import {ERC20} from "./solady/src/tokens/ERC20.sol";
+import {IWETH} from "./interface/IWETH.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interface/IToken.sol";
 import "./interface/IIPShare.sol";
 import "./interface/IPump.sol";
-import "./interface/IUniswapV2Router02.sol";
 import "./interface/IUniswapV2Factory.sol";
+import "./interface/IUniswapV2Router02.sol";
+import "./interface/IBondingCurve.sol";
+import "./interface/INonfungiblePositionManager.sol";
 
 contract Token is IToken, ERC20, ReentrancyGuard {
     string private _name;
     string private _symbol;
-    uint256 private constant secondPerDay = 86400;
     uint256 private constant divisor = 10000;
+    address private BlackHole = 0x000000000000000000000000000000000000dEaD;
 
     // distribute token total amount
     uint256 private constant socialDistributionAmount = 150000000 ether;
-    uint256 private constant bondingCurveTotalAmount = 700000000 ether;
-    uint256 private constant liquidityAmount = 150000000 ether;
+    uint256 private constant bondingCurveTotalAmount = 650000000 ether;
+    uint256 private constant liquidityAmount = 200000000 ether;
 
-    // social distribution - start util the list event
-    struct Distribution {
-        uint256 amount;
-        uint256 startTime;
-        uint256 stopTime;
-    }
-    Distribution[] private distributionEras;
-    // last claim to social pool time
-    uint256 public lastClaimTime;
-    // pending reward in social pool to claim, init 50m to the bonding curve period
-    uint256 public pendingClaimSocialRewards = 50000000 ether;
-    // total claimed reward from social pool
-    uint256 public totalClaimedSocialRewards;
-
-    uint256 public startTime;
-    mapping(uint256 => bool) public claimedOrder;
+    
 
     // bonding curve
-    uint256 public bondingCurveSupply;
-    uint256 private constant priceParam = 11_433_333_333_333_333_333;
+    uint256 public bondingCurveSupply = 0;
+    mapping(uint256 => bool) public claimedOrder;
 
     // state
     address private manager;
     address public ipshareSubject;
+    IBondingCurve public bondingCurve;
     bool public listed = false;
     bool initialized = false;
 
     // dex
-    address private pair;
-    address private WETH = 0x4200000000000000000000000000000000000006;
-    address private uniswapV2Factory = 0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6;
-    address private uniswapV2Router02 = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
-
-    address private constant BlackHole = 0x000000000000000000000000000000000000dEaD;
-    // 10 - price: 2.041667e-7
-    uint256 private constant ethAmountToDex = 10 ether;
 
     receive() external payable {
         if (!listed) {
-            buyToken(0, address(0), 0, address(0));
+            buyToken(0, address(0), 0);
         }
+    }
+
+    function getIPShare() external view returns (address) {
+        return ipshareSubject;
     }
 
     function initialize(address manager_, address ipshareSubject_, string memory tick) public override {
@@ -71,137 +56,45 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         initialized = true;
         manager = manager_;
         ipshareSubject = ipshareSubject_;
+        bondingCurve = IBondingCurve(manager_);
         _name = tick;
         _symbol = tick;
-        // before dawn of today
-        startTime = block.timestamp - (block.timestamp % secondPerDay);
-        lastClaimTime = startTime - 1;
+        
+        _mint(address(this), bondingCurveTotalAmount + liquidityAmount);
+        _mint(address(manager), socialDistributionAmount);
 
-        IUniswapV2Factory factory = IUniswapV2Factory(uniswapV2Factory);
-        pair = factory.createPair(address(this), WETH);
-        _mint(address(this), socialDistributionAmount + bondingCurveTotalAmount + liquidityAmount);
-    }
-
-    /********************************** social distribution ********************************/
-    function calculateReward(uint256 from, uint256 to) public view returns (uint256 rewards) {
-        if (!listed) return 0;
-        uint256 rewardedTime = from - 1;
-        if (rewardedTime < startTime) {
-            rewardedTime = startTime;
-        }
-
-        for (uint8 i = 0; i < distributionEras.length; i++) {
-            if (rewardedTime > distributionEras[i].stopTime) {
-                continue;
-            }
-            if (to <= distributionEras[i].stopTime) {
-                rewards += (to - rewardedTime) * distributionEras[i].amount;
-            } else {
-                rewards += (distributionEras[i].stopTime - rewardedTime) * distributionEras[i].amount;
-            }
-        }
-    }
-
-    function getCurrentDistibutionEra() public view returns (Distribution memory era) {
-        for (uint8 i = 0; i < distributionEras.length; i++) {
-            if (block.timestamp >= distributionEras[i].startTime && block.timestamp < distributionEras[i].stopTime) {
-                return distributionEras[i];
-            }
-        }
-    }
-
-    function getCurrentRewardPerDay() public view returns (uint256) {
-        return getCurrentDistibutionEra().amount * secondPerDay;
-    }
-
-    // set distributed rewards can be claimed by user
-    function claimPendingSocialRewards() public {
-        // calculate rewards
-        uint256 rewards = calculateReward(lastClaimTime, block.timestamp);
-        if (rewards > 0) {
-            pendingClaimSocialRewards += rewards;
-            lastClaimTime = block.timestamp;
-            emit ClaimDistributedReward(block.timestamp, rewards);
-        }
-    }
-
-    function userClaim(address token, uint256 orderId, uint256 amount, bytes calldata signature) public payable {
-        if (!listed) {
-            revert TokenNotListed();
-        }
-        if (claimedOrder[orderId]) {
-            revert ClaimOrderExist();
-        }
-        if (signature.length != 65) {
-            revert InvalidSignature();
-        }
-        if (token != address(this)) {
-            revert InvalidSignature();
-        }
-
-        uint256 claimFee = IPump(manager).getClaimFee();
-        if (msg.value < claimFee) {
-            revert CostFeeFail();
-        } else if (msg.value > claimFee) {
-            (bool success, ) = msg.sender.call{value: msg.value - claimFee}("");
-            if (!success) {
-                revert RefundFail();
-            }
-        } else {
-            address receiver = IPump(manager).getFeeReceiver();
-            (bool success, ) = receiver.call{value: claimFee}("");
-            if (!success) {
-                revert CostFeeFail();
-            }
-        }
-
-        bytes32 data = keccak256(abi.encodePacked(token, orderId, msg.sender, amount));
-        if (!_check(data, signature)) {
-            revert InvalidSignature();
-        }
-
-        if (pendingClaimSocialRewards < amount) {
-            claimPendingSocialRewards();
-        }
-
-        if (pendingClaimSocialRewards < amount) {
-            revert InvalidClaimAmount();
-        }
-
-        pendingClaimSocialRewards -= amount;
-        totalClaimedSocialRewards += amount;
-
-        claimedOrder[orderId] = true;
-
-        this.transfer(msg.sender, amount);
-
-        emit UserClaimReward(orderId, msg.sender, amount);
+        IUniswapV2Factory factory = IUniswapV2Factory(IPump(manager_).getUniswapV2Factory());
+        pair = factory.getPair(address(this), IPump(manager_).getWETH());
     }
 
     /********************************** bonding curve ********************************/
     function buyToken(
         uint256 expectAmount,
         address sellsman,
-        uint16 slippage,
-        address receiver
+        uint16 slippage
     ) public payable nonReentrant returns (uint256) {
         sellsman = _checkBondingCurveState(sellsman);
-        if (receiver == address(0)) {
-            receiver = tx.origin;
-        }
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
         uint256 buyFunds = msg.value;
         uint256 tiptagFee = (msg.value * feeRatio[0]) / divisor;
         uint256 sellsmanFee = (msg.value * feeRatio[1]) / divisor;
 
-        uint256 tokenReceived = _getBuyAmountByValue(buyFunds - tiptagFee - sellsmanFee);
+        uint256 tokenReceived = bondingCurve
+            .getBuyAmountByValue(bondingCurveSupply, buyFunds - tiptagFee - sellsmanFee);
 
         address tiptapFeeAddress = IPump(manager).getFeeReceiver();
 
         if (tokenReceived + bondingCurveSupply >= bondingCurveTotalAmount) {
             uint256 actualAmount = bondingCurveTotalAmount - bondingCurveSupply;
+            if (
+                slippage > 0 &&
+                (actualAmount > (expectAmount * (divisor + slippage)) / divisor ||
+                    actualAmount < (expectAmount * (divisor - slippage)) / divisor)
+            ) {
+                revert OutOfSlippage();
+            }
             // calculate used eth
-            uint256 usedEth = getBuyPriceAfterFee(actualAmount);
+            uint256 usedEth = bondingCurve.getBuyPriceAfterFee(bondingCurveSupply, actualAmount);
             if (usedEth > msg.value) {
                 revert InsufficientFund();
             }
@@ -222,13 +115,12 @@ contract Token is IToken, ERC20, ReentrancyGuard {
                 revert CostFeeFail();
             }
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
-            this.transfer(receiver, actualAmount);
+            this.transfer(msg.sender, actualAmount);
             bondingCurveSupply += actualAmount;
 
-            emit Trade(receiver, sellsman, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
+            emit Trade(msg.sender, sellsman, true, actualAmount, usedEth, tiptagFee, sellsmanFee);
             // build liquidity pool
             _makeLiquidityPool();
-            listed = true;
             return actualAmount;
         } else {
             if (
@@ -245,9 +137,9 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             }
 
             IIPShare(IPump(manager).getIPShare()).valueCapture{value: sellsmanFee}(sellsman);
-            this.transfer(receiver, tokenReceived);
+            this.transfer(msg.sender, tokenReceived);
             bondingCurveSupply += tokenReceived;
-            emit Trade(receiver, sellsman, true, tokenReceived, msg.value, tiptagFee, sellsmanFee);
+            emit Trade(msg.sender, sellsman, true, tokenReceived, msg.value, tiptagFee, sellsmanFee);
             return tokenReceived;
         }
     }
@@ -266,7 +158,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         uint256 afterSupply = 0;
         afterSupply = bondingCurveSupply - sellAmount;
         
-        uint256 price = getPrice(afterSupply, sellAmount);
+        uint256 price = bondingCurve.getPrice(afterSupply, sellAmount);
 
         uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
         address tiptagFeeAddress = IPump(manager).getFeeReceiver();
@@ -312,123 +204,23 @@ contract Token is IToken, ERC20, ReentrancyGuard {
         return sellsman;
     }
 
-    /**
-     * calculate the eth price when user buy amount tokens
-     */
-    function getPrice(uint256 supply, uint256 amount) public pure returns (uint256) {
-        supply = supply / 100;
-        amount = amount / 100;
-        uint256 price = amount * (amount ** 2 + 3 * amount * supply + 3 * (supply ** 2));
-        return price / priceParam / 3e36;
-    }
-
-    function getBuyPrice(uint256 amount) public view returns (uint256) {
-        return getPrice(bondingCurveSupply, amount);
-    }
-
-    function getSellPrice(uint256 amount) public view returns (uint256) {
-        return getPrice(bondingCurveSupply - amount, amount);
-    }
-
-    function getBuyPriceAfterFee(uint256 amount) public view returns (uint256) {
-        uint256 price = getBuyPrice(amount);
-        uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
-        return ((price * divisor) / (divisor - feeRatio[0] - feeRatio[1]));
-    }
-
-    function getSellPriceAfterFee(uint256 amount) public view returns (uint256) {
-        uint256 price = getSellPrice(amount);
-        uint256[2] memory feeRatio = IPump(manager).getFeeRatio();
-        return (price * (divisor - feeRatio[0] - feeRatio[1])) / divisor;
-    }
-
-    function _getBuyAmountByValue(uint256 ethAmount) private view returns (uint256) {
-        return (floorCbrt(ethAmount * priceParam * 3e36 + 
-                (bondingCurveSupply / 100) ** 3) - (bondingCurveSupply / 100)) 
-                * 100;
-    }
-
-    function getBuyAmountByValue(uint256 ethAmount) public view returns (uint256) {
-        uint256 amount = _getBuyAmountByValue(ethAmount);
-        if (amount + bondingCurveSupply > bondingCurveTotalAmount) {
-            return bondingCurveTotalAmount - bondingCurveSupply;
-        }
-        return amount;
-    }
-
-    function getETHAmountToDex() public view returns (uint256) {
-        return getBuyPriceAfterFee(bondingCurveTotalAmount - bondingCurveSupply);
-    }
-
-    function floorCbrt(uint256 n) internal pure returns (uint256) {
-        unchecked {
-            uint256 x = 0;
-            for (uint256 y = 1 << 255; y > 0; y >>= 3) {
-                x <<= 1;
-                uint256 z = 3 * x * (x + 1) + 1;
-                if (n / y >= z) {
-                    n -= y * z;
-                    x += 1;
-                }
-            }
-            return x;
-        }
-    }
-
     /********************************** to dex ********************************/
     function _makeLiquidityPool() private {
-        _approve(address(this), uniswapV2Router02, liquidityAmount);
+        _approve(address(this), IPump(manager).getUniswapV2Router(), liquidityAmount);
 
-        // v2
-        IUniswapV2Router02 router = IUniswapV2Router02(uniswapV2Router02);
+        address tiptagFeeAddress = IPump(manager).getFeeReceiver();
+        (bool success1, ) = tiptagFeeAddress.call{value: 0.2 ether}("");
+        if (!success1) {
+            revert CostFeeFail();
+        }
 
+        IUniswapV2Router02 router = IUniswapV2Router02(IPump(manager).getUniswapV2Router());
         router.addLiquidityETH{
             value: address(this).balance
         }(address(this), liquidityAmount, 0, 0, BlackHole, block.timestamp + 300);
 
-        startTime = block.timestamp - (block.timestamp % secondPerDay);
-        lastClaimTime = startTime - 1;
-
-        distributionEras.push(
-            Distribution({amount: 11574074074074074000, startTime: startTime, stopTime: startTime + 100 * 86400})
-        );
-
+        listed = true;
         emit TokenListedToDex(pair);
-
-        // v3
-        // create pool
-        // address pool = INonfungiblePositionManager(positionManager).createAndInitializePoolIfNecessary(
-        //     address(this),
-        //     WETH,
-        //     500,
-        //     sqrtPrice
-        // );
-
-        // if (pool == address(0)) {
-        //     revert CreateDexPoolFail();
-        // }
-
-        // INonfungiblePositionManager.MintParams memory params
-        //     = INonfungiblePositionManager.MintParams({
-        //     token0: address(this),
-        //     token1: WETH,
-        //     fee: 500,
-        //     tickLower: -887220,
-        //     tickUpper: 887220,
-        //     amount0Desired: liquidityAmount,
-        //     amount1Desired: ethAmountToDex,
-        //     amount0Min: 0,
-        //     amount1Min: 0,
-        //     recipient: BlackHole,
-        //     deadline: block.timestamp
-        // });
-
-        // // // add liquidity
-        // INonfungiblePositionManager(positionManager).mint{
-        //     value: ethAmountToDex
-        // }(
-        //     params
-        // );
     }
 
     /********************************** erc20 function ********************************/
@@ -446,18 +238,5 @@ contract Token is IToken, ERC20, ReentrancyGuard {
             revert TokenNotListed();
         }
         return super._beforeTokenTransfer(from, to, amount);
-    }
-
-    function _check(bytes32 data, bytes calldata sign) internal view returns (bool) {
-        bytes32 r = abi.decode(sign[:32], (bytes32));
-        bytes32 s = abi.decode(sign[32:64], (bytes32));
-        uint8 v = uint8(sign[64]);
-        if (v < 27) {
-            if (v == 0 || v == 1) v += 27;
-        }
-        bytes memory profix = "\x19Ethereum Signed Message:\n32";
-        bytes32 info = keccak256(abi.encodePacked(profix, data));
-        address addr = ecrecover(info, v, r, s);
-        return addr == IPump(manager).getClaimSigner();
     }
 }

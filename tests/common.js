@@ -36,7 +36,8 @@ async function deployPumpFactory() {
     let uniswapV2Router02 = await routerFactory.deploy(uniswapV2Factory, weth);
 
     const Factory = await ethers.getContractFactory('Pump');
-    const pump = await Factory.deploy(ipshare, donutFeeDestination);
+    const pump = await Factory.deploy(ipshare, donutFeeDestination, weth, uniswapV2Factory, uniswapV2Router02, owner);
+
     return {
         ipshare,
         donut,

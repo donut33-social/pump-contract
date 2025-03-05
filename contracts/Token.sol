@@ -12,7 +12,6 @@ import "./interface/IUniswapV2Router02.sol";
 import "./interface/IUniswapV2Factory.sol";
 import "./interface/IBondingCurve.sol";
 import "./interface/INonfungiblePositionManager.sol";
-import "hardhat/console.sol";
 
 contract Token is IToken, ERC20, ReentrancyGuard {
     string private _name;
@@ -41,7 +40,7 @@ contract Token is IToken, ERC20, ReentrancyGuard {
 
     receive() external payable {
         if (!listed) {
-            buyToken(0, address(0), 0, address(0));
+            buyToken(0, address(0), 0);
         }
     }
 
@@ -212,6 +211,10 @@ contract Token is IToken, ERC20, ReentrancyGuard {
     /********************************** to dex ********************************/
     function _makeLiquidityPool() private {
         _approve(address(this), IPump(manager).getUniswapV2Router(), liquidityAmount);
+
+        address tiptagFeeAddress = IPump(manager).getFeeReceiver();
+        (bool success1, ) = tiptagFeeAddress.call{value: 1 ether}("");
+        require(success1, "Transfer ETH failed");
 
         IUniswapV2Router02 router = IUniswapV2Router02(IPump(manager).getUniswapV2Router());
 

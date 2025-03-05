@@ -149,7 +149,7 @@ describe("Pump", function () {
             const feeInfo = await getBuyFeeData(buyFund)
             const buyAmount = await pump.getBuyAmountByValue(0, feeInfo.buyFund);
 
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
                 value: buyFund
             })).to.changeTokenBalance(token, alice, buyAmount)
         })
@@ -166,7 +166,7 @@ describe("Pump", function () {
         })
 
         it("Can sell token with bonding curve", async () => {
-            await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, alice, {
+            await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, {
                 value: parseAmount(0.1)
             });
 
@@ -174,23 +174,12 @@ describe("Pump", function () {
                 .to.changeTokenBalance(token, alice, -parseAmount(10000000))
         })
 
-        it("Can buy token for otherone", async () => {
-            const buyFund = parseAmount(0.2)
-
-            const feeInfo = await getBuyFeeData(buyFund)
-            const buyAmount = await pump.getBuyAmountByValue(0, feeInfo.buyFund);
-
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
-                value: buyFund
-            })).to.changeTokenBalance(token, bob, buyAmount)
-        })
-
         it("Can trade with otherone", async () => {
             const buyFund = parseAmount(0.2)
 
             const feeInfo = await getBuyFeeData(buyFund)
             const buyAmount = await pump.getBuyAmountByValue(0, feeInfo.buyFund);
-            await token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
+            await token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
                 value: buyFund
             })
 
@@ -207,7 +196,7 @@ describe("Pump", function () {
 
         it("The bonding curve price calculate need to be correct", async () => {
             const buyFund = parseAmount(0.2)
-            await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, alice, {
+            await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, {
                 value: buyFund
             })
             let supply = await getBondingCurveSupply()
@@ -215,7 +204,7 @@ describe("Pump", function () {
             const price = await pump.getBuyPriceAfterFee(supply, parseAmount(100000000))
             expect(price).eq(911848133866902953n)
 
-            await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, alice, {
+            await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, {
                 value: 911848133866902953n
             })
             supply = await getBondingCurveSupply()
@@ -230,7 +219,7 @@ describe("Pump", function () {
 
             const feeInfo = await getBuyFeeData(buyFund)
             const buyAmount = await pump.getBuyAmountByValue(0, feeInfo.buyFund);
-            await expect(token.connect(alice).buyToken(buyAmount, bob, 0, alice, {
+            await expect(token.connect(alice).buyToken(buyAmount, bob, 0, {
                 value: buyFund
             })).to.be.revertedWithCustomError(token, 'IPShareNotCreated')
         })
@@ -242,7 +231,7 @@ describe("Pump", function () {
 
             const feeInfo = await getBuyFeeData(buyFund)
             const buyAmount = await pump.getBuyAmountByValue(0, feeInfo.buyFund);
-            await expect(token.connect(alice).buyToken(buyAmount, bob, 0, alice, {
+            await expect(token.connect(alice).buyToken(buyAmount, bob, 0, {
                 value: buyFund
             })).to.changeTokenBalance(token, alice, buyAmount)
         })
@@ -264,7 +253,7 @@ describe("Pump", function () {
 
             const feeInfo = await getBuyFeeData(buyFund)
             const buyAmount = await pump.getBuyAmountByValue(0, feeInfo.buyFund);
-            await token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, alice, {
+            await token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 0, {
                 value: buyFund
             })
 
@@ -274,7 +263,7 @@ describe("Pump", function () {
         })
 
         it('Cannt make lp before list', async () => {
-            await token.buyToken(parseAmount(100000000), ethers.ZeroAddress, 0 ,ethers.ZeroAddress, {
+            await token.buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, {
                 value: parseAmount(1)
             })
             // router.addLiquidityETH{
@@ -337,16 +326,16 @@ describe("Pump", function () {
             const bondingTotalAmount = parseAmount(650000000);
             const bondingCurveSupply = await getBondingCurveSupply()
             const gb = await pump.getPrice(bondingCurveSupply, bondingTotalAmount - bondingCurveSupply);
-            await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, alice, {
+            await token.connect(alice).buyToken(parseAmount(100000000), ethers.ZeroAddress, 0, {
                 value: parseAmount(1)
             })
             const bondingCurveSupply2 = await getBondingCurveSupply()
             const gb2 = await pump.getBuyPriceAfterFee(bondingCurveSupply2, bondingTotalAmount - bondingCurveSupply2);
             const buyFund = parseAmount(21)
             
-            await expect(token.connect(bob).buyToken(bondingTotalAmount, ethers.ZeroAddress, 0, alice, {
+            await expect(token.connect(bob).buyToken(bondingTotalAmount, ethers.ZeroAddress, 0, {
                 value: buyFund
-            })).to.changeEtherBalance(bob, -gb2);
+            })).to.changeEtherBalances([bob, donutFeeDestination], [-gb2, 1198933677024662579n]);
         })
 
         it("The last buyer will make the liquidity pool too", async () => {
@@ -354,17 +343,21 @@ describe("Pump", function () {
 
             let bondingCurveSupply = await getBondingCurveSupply()
             let needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
-            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, {
                 value: needEth 
             })
 
             const balanceOfBob = await token.balanceOf(bob)
             // console.log('balance of bob', balanceOfBob)
 
-            buyAmount = parseAmount(100000000)
+            buyAmount = parseAmount(200000000)
              bondingCurveSupply = await getBondingCurveSupply()
             needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, alice, {
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, {
+                value: needEth
+            })).to.revertedWithCustomError(token, 'OutOfSlippage')
+
+            await expect(token.connect(alice).buyToken(parseAmount(50000000), ethers.ZeroAddress, 500, {
                 value: needEth
             })).to.changeTokenBalance(token, alice, parseAmount(650000000) - balanceOfBob)
         })
@@ -373,17 +366,17 @@ describe("Pump", function () {
             let buyAmount = parseAmount(600000000)
             let bondingCurveSupply = await getBondingCurveSupply()
             let needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
-            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, {
                 value: needEth
             })
 
             const balanceOfBob = await token.balanceOf(bob)
             // console.log('balance of bob', balanceOfBob)
 
-            buyAmount = parseAmount(200000000)
+            buyAmount = parseAmount(50001000)
             bondingCurveSupply = await getBondingCurveSupply()
             needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, alice, {
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, {
                 value: needEth
             })).to.emit(token, 'TokenListedToDex').withArgs(pair)
         })
@@ -392,25 +385,55 @@ describe("Pump", function () {
             let buyAmount = parseAmount(600000000)
             let bondingCurveSupply = await getBondingCurveSupply()
             let needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
-            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, {
                 value: needEth
             })
 
             const balanceOfBob = await token.balanceOf(bob)
             // console.log('balance of bob', balanceOfBob)
 
-            buyAmount = parseAmount(200000000)
+            buyAmount = parseAmount(50010000)
             bondingCurveSupply = await getBondingCurveSupply()
             needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
-            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, alice, {
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, {
                 value: needEth
             })).to.emit(token, 'TokenListedToDex').withArgs(pair)
             const balanceOfToken = await token.balanceOf(token);
             console.log('balance of token', balanceOfToken)
             expect(balanceOfToken).eq(0)
         })
-    })
 
+        it('Will receive 1 bnb for list fee', async () => {
+            let buyAmount = parseAmount(600000000)
+            let bondingCurveSupply = await getBondingCurveSupply()
+            let needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+                value: needEth
+            })
+
+            const balanceOfBob = await token.balanceOf(bob)
+            // console.log('balance of bob', balanceOfBob)
+
+            buyAmount = parseAmount(50010000)
+            bondingCurveSupply = await getBondingCurveSupply()
+            needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
+            await expect(token.connect(alice).buyToken(buyAmount, ethers.ZeroAddress, 500, {
+                value: needEth
+            })).to.changeEtherBalance(donutFeeDestination, 1040762559720426312n)
+        })
+
+        it('Can buy token to dex when create token', async () => {
+            let buyAmount = parseAmount(650000010)
+            let bondingCurveSupply = await getBondingCurveSupply()
+            let needEth = await pump.getBuyPriceAfterFee(bondingCurveSupply, buyAmount)
+            await expect(token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, {
+                value: needEth
+            })).to.changeEtherBalance(donutFeeDestination, 1209183677024662579n)
+            
+            expect(await token.listed()).eq(true)
+        })
+    })
+    
     describe('After token list', function () {
         let token;
         let feeRatio;
@@ -423,7 +446,7 @@ describe("Pump", function () {
             let buyAmount = parseAmount(660000000)
             const supply = await getBondingCurveSupply()
             let needEth = await pump.getBuyPriceAfterFee(supply, buyAmount)
-            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, bob, {
+            await token.connect(bob).buyToken(buyAmount, ethers.ZeroAddress, 0, {
                 value: needEth
             })
         })
@@ -459,8 +482,8 @@ describe("Pump", function () {
         })
 
         it("Can claim curation token", async () => {
-            const pendingClaimSocialRewards = await token.pendingClaimSocialRewards();
-            const totalClaimedSocialRewards = await token.totalClaimedSocialRewards();
+            const pendingClaimSocialRewards = await pump.pendingClaimSocialRewards(token);
+            const totalClaimedSocialRewards = await pump.totalClaimedSocialRewards(token);
             console.log(1, pendingClaimSocialRewards, totalClaimedSocialRewards)
 
             const blockNumber = await ethers.provider.getBlockNumber();
@@ -555,7 +578,7 @@ describe("Pump", function () {
         })
 
         it('Cannt trade with bonding curve', async () => {
-            await expect(token.connect(alice).buyToken(parseAmount(1000), ethers.ZeroAddress, 0, alice, {
+            await expect(token.connect(alice).buyToken(parseAmount(1000), ethers.ZeroAddress, 0, {
                 value: parseAmount(0.01)
             })).to.revertedWithCustomError(token, 'TokenListed')
 

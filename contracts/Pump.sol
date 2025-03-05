@@ -33,7 +33,7 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
     mapping(string => bool) public createdTicks;
 
     // social distribution
-    uint256 private constant claimAmountPerSecond = 11.574074 ether;
+    uint256 private constant claimAmountPerSecond = 12.87 ether;
     mapping(address => uint256) private lastClaimTime;
     mapping(address => mapping(uint256 => bool)) public claimedOrder;
     mapping(address => uint256) public pendingClaimSocialRewards;
@@ -151,12 +151,15 @@ contract Pump is Ownable, Nonces, IPump, ReentrancyGuard, IBondingCurve {
         lastClaimTime[instance] = block.timestamp - (block.timestamp % secondPerDay) - 1;
 
         if (msg.value > createFee) {
-            (bool success1, ) = instance.call{
+            (bool success1, bytes memory receiveAmount) = instance.call{
                 value: msg.value - createFee
-            }(abi.encodeWithSignature("buyToken(uint256,address,uint16,address)", 0, creator, 0, creator));
+            }(abi.encodeWithSignature("buyToken(uint256,address,uint16)", 0, creator, 0));
             if (!success1) {
                 revert PreMineTokenFail();
             }
+            uint256 receiveAmountUint = abi.decode(receiveAmount, (uint256));
+            
+            IERC20(instance).transfer(msg.sender, receiveAmountUint);
             uint256 leftValue = address(this).balance;
             if (leftValue > 0) {
                 (bool success2, ) = msg.sender.call{value: leftValue}("");

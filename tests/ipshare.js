@@ -28,14 +28,14 @@ describe("IPShare", function () {
         return ipshare.connect(user).createShare(user)
     }
 
-    async function buyIPShare(subject, buyer, amount) {
-        return ipshare.connect(buyer).buyShares(subject, buyer, {
+    async function buyIPShare(subject, buyer, amount, amountOutMin) {
+        return ipshare.connect(buyer).buyShares(subject, buyer, amountOutMin, {
           value: parseAmount(amount),
         });
       }
 
-    async function sellIPShare(subject, seller, share) {
-        return ipshare.connect(seller).sellShares(subject, share/* parseAmount(share) */);
+    async function sellIPShare(subject, seller, share, amountOutMin) {
+        return ipshare.connect(seller).sellShares(subject, share, amountOutMin);
     }
 
     async function stakeIPShare(subject, staker, share) {
@@ -181,10 +181,10 @@ describe("IPShare", function () {
 
         it('Cannt buy and sell shares', async () => {
             await createIPShare(alice, 10, 5);
-            await expect(ipshare.connect(bob).buyShares(alice, bob, {
+            await expect(ipshare.connect(bob).buyShares(alice, bob, 0n, {
                 value: parseAmount(1)
             })).to.be.revertedWithCustomError(ipshare, 'PendingTradeNow')
-            await expect(ipshare.connect(alice).buyShares(alice, alice, {
+            await expect(ipshare.connect(alice).buyShares(alice, alice, 0n, {
                 value: parseAmount(1)
             })).to.be.revertedWithCustomError(ipshare, 'PendingTradeNow')
         })
@@ -270,15 +270,8 @@ describe("IPShare", function () {
         })
 
         it('Can buy and sell shares', async () => {
-            // buyer,
-            // subject,
-            // true,
-            // ipshareReceived,
-            // buyFunds,
-            // donutFee,
-            // subjectFee,
-            // supply + ipshareReceived
-            await expect(buyIPShare(subject, alice, 0.1))
+ 
+            await expect(buyIPShare(subject, alice, 0.1, 0))
                 .to.emit(ipshare, 'Trade')
                 .withArgs(
                     alice,
@@ -291,7 +284,7 @@ describe("IPShare", function () {
                     30687813601627909324n
                 )
 
-            await expect(sellIPShare(subject, alice, parseAmount(10)))
+            await expect(sellIPShare(subject, alice, parseAmount(10), 0n))
                 .to.emit(ipshare, 'Trade')
                 .withArgs(
                     alice,
@@ -305,8 +298,57 @@ describe("IPShare", function () {
                 )
         })
 
+        it('Cannt buy shares with slippage', async () => {
+            await createIPShare(alice, 10, 5);
+            const supply = await ipshare.ipshareSupply(alice)
+            const buyAmount = await ipshare.getBuyAmountByValue(supply, parseAmount(1))
+            await expect(ipshare.connect(bob).buyShares(alice, bob, buyAmount, {
+                value: parseAmount(1)
+            })).to.be.revertedWithCustomError(ipshare, 'OutOfSlippage')
+
+            await expect(ipshare.connect(bob).buyShares(alice, bob, buyAmount * 950n / 1000n, {
+                value: parseAmount(1)
+            })).to.emit(ipshare, 'Trade')
+            .withArgs(
+                bob,
+                alice,
+                true,
+                55421326203771794564n,
+                1000000000000000000n,
+                25000000000000000n,
+                45000000000000000n,
+                65421326203771794564n
+            )
+        })
+        it('Cannt sell shares with slippage', async () => {
+            await createIPShare(alice, 10, 5);
+            let amount = parseAmount(10)
+            const supply = await ipshare.ipshareSupply(alice)
+            console.log(10, supply)
+            await buyIPShare(alice, bob, 1, 0)
+            const balance = await ipshare.ipshareBalance(alice, bob)
+            console.log(1, balance.toString() / 1e18)
+            
+            amount = balance / 2n;
+            const aa = await ipshare.getSellPriceAfterFee(alice, amount)
+            console.log(2,aa)
+            await expect(ipshare.connect(bob).sellShares(alice, amount, aa + 1n)).to.be.revertedWithCustomError(ipshare, 'OutOfSlippage')
+            await expect(ipshare.connect(bob).sellShares(alice, amount, aa))
+                .to.emit(ipshare, 'Trade')
+                .withArgs(
+                    bob,
+                    alice,
+                    false,
+                    27710663101885897282n,
+                    754572960196274550n,
+                    18864324004906863n,
+                    33955783208832354n,
+                    37710663101885897282n
+                )
+        })
+
         it('Can stake and unstake shares', async () => {
-            await buyIPShare(subject, alice, 10)
+            await buyIPShare(subject, alice, 10, 0)
             await expect(ipshare.connect(alice).stake(subject, parseAmount(30)))
                 .to.emit(ipshare, 'Stake')
                 .withArgs(alice, subject, true, parseAmount(30), parseAmount(30))
@@ -327,7 +369,7 @@ describe("IPShare", function () {
         })
 
         it("Can capture value and claim reward", async () => {
-            await buyIPShare(subject, alice, 0.1)
+            await buyIPShare(subject, alice, 0.1, 0)
             await ipshare.connect(alice).stake(subject, parseAmount(10))
             await expect(ipshare.valueCapture(subject, {
                 value: parseAmount(0.1)

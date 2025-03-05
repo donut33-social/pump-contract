@@ -246,7 +246,8 @@ contract Donut is Ownable, Pausable, ReentrancyGuard, IDonut {
         // buy ipshare
         uint256 recIPShares = IIPShare(IPShare).buyShares{value: ipshareFund}(
             subject,
-            msg.sender
+            msg.sender,
+            0
         );
 
         emit Donate(

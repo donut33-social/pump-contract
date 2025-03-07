@@ -13,30 +13,30 @@ contract WrappedUniV2ForTipTag is Ownable {
     address public feeAddress;
 
     uint16 public sellsmanRatio = 100;
-    uint16 public tiptagRatio = 0;
+    uint16 public tagaiRatio = 100;
 
     constructor(
         address _ipshare,
         address _feeAddress,
         uint16 _sellsmanRatio,
-        uint16 _tiptagRatio
+        uint16 _tagaiRatio
     ) Ownable(msg.sender) {
         ipshare = IIPShare(_ipshare);
         feeAddress = _feeAddress;
         sellsmanRatio = _sellsmanRatio;
-        tiptagRatio = _tiptagRatio;
+        tagaiRatio = _tagaiRatio;
     }
 
     function adminSetFeeRatio(
         uint16 _sellsmanRatio,
-        uint16 _tiptagRatio
+        uint16 _tagaiRatio
     ) public onlyOwner {
         require(
-            _sellsmanRatio < 1000 && _tiptagRatio < 1000,
+            _sellsmanRatio < 1000 && _tagaiRatio < 1000,
             "fee ratio too high"
         );
         sellsmanRatio = _sellsmanRatio;
-        tiptagRatio = _tiptagRatio;
+        tagaiRatio = _tagaiRatio;
     }
 
     function adminSetIpshare(address addr) public onlyOwner {
@@ -72,11 +72,11 @@ contract WrappedUniV2ForTipTag is Ownable {
 
             ipshare.valueCapture{value: sellsmanFee}(sellsman);
         }
-        if (tiptagRatio > 0) {
-            uint256 tiptagFee = (msg.value * tiptagRatio) / 10000;
-            require(tiptagFee >= 10000, "Tool low fee");
-            buyFund = buyFund - tiptagFee;
-            (bool success, ) = feeAddress.call{value: tiptagFee}("");
+        if (tagaiRatio > 0) {
+            uint256 tagaiFee = (msg.value * tagaiRatio) / 10000;
+            require(tagaiFee >= 10000, "Tool low fee");
+            buyFund = buyFund - tagaiFee;
+            (bool success, ) = feeAddress.call{value: tagaiFee}("");
             require(success, "Pay fee fail");
         }
 
@@ -132,11 +132,11 @@ contract WrappedUniV2ForTipTag is Ownable {
             amount -= sellsmanFee;
             ipshare.valueCapture{value: sellsmanFee}(sellsman);
         }
-        if (tiptagRatio > 0) {
-            uint256 tiptagFee = (amounts[amounts.length - 1] * tiptagRatio) /
+        if (tagaiRatio > 0) {
+            uint256 tagaiFee = (amounts[amounts.length - 1] * tagaiRatio) /
                 10000;
-            amount -= tiptagFee;
-            (bool res, ) = feeAddress.call{value: tiptagFee}("");
+            amount -= tagaiFee;
+            (bool res, ) = feeAddress.call{value: tagaiFee}("");
             require(res, "Pay fee fail");
         }
         (bool success, ) = to.call{value: amount}("");
